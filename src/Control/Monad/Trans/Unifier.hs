@@ -1,10 +1,7 @@
 {-# LANGUAGE
-    FlexibleInstances
-  , FlexibleContexts
-  , MultiParamTypeClasses
+    FlexibleContexts
   , Rank2Types
   , StandaloneDeriving
-  , TypeFamilies
   , UndecidableInstances
   , ViewPatterns #-}
 module Control.Monad.Trans.Unifier
@@ -58,16 +55,6 @@ class Traversable f => Unifiable f where
   zipMatch :: f a -> f b -> Maybe (f (a, b))
 
 deriving instance Show (ref (Maybe (Term f ref))) => Show (Var f ref)
-
-instance SetElem (ref (Maybe (Term f ref))) => SetElem (Var f ref) where
-  newtype Set (Var f ref)
-    = VarSet { unVarSet :: Set (ref (Maybe (Term f ref)))
-             }
-  empty = VarSet Set.empty
-  singleton = VarSet . Set.singleton . getRef
-  insert e = VarSet . Set.insert (getRef e) . unVarSet
-  union x y = VarSet $ Set.union (unVarSet x) (unVarSet y)
-  toList = map Var . Set.toList . unVarSet
 
 freshTerm :: MonadRef ref m => m (Term f ref)
 freshTerm = liftM (Pure . Var) $ newRef Nothing
@@ -185,18 +172,16 @@ freeVars :: ( Foldable f
             , SetElem (ref (Maybe (Term f ref)))
             , MonadRef ref m
             ) => Term f ref -> m (Set (ref (Maybe (Term f ref))))
-freeVars = foldlVarM (\ a -> return . flip Set.insert a) Set.empty
+freeVars = foldlUnboundVarM (\ a -> return . flip Set.insert a) Set.empty
 
-foldlVarM :: ( Foldable f
-             , MonadRef ref m
-             ) => (a -> ref (Maybe (Term f ref)) -> m a) -> a -> Term f ref -> m a
-foldlVarM k = go
+foldlUnboundVarM :: ( Foldable f
+                    , MonadRef ref m
+                    ) => (a -> ref (Maybe (Term f ref)) -> m a) -> a -> Term f ref -> m a
+foldlUnboundVarM k = foldlM go
   where
-    go a (Pure (getRef -> r)) =
+    go a (getRef -> r) =
       readRef r >>=
-      maybe (k a r) (go a)
-    go a (Free f) =
-      foldlM go a f
+      maybe (k a r) (foldlM go a)
 
 freeze :: ( Traversable f
           , MapKey (ref (Maybe (Term f ref)))
