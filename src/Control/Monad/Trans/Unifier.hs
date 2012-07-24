@@ -149,17 +149,17 @@ data Semipruned f ref
 semiprune :: MonadRef ref m => Term f ref -> m (TermS f ref)
 semiprune = semiprune'
   where
-    semiprune' t0@(Pure v0) =
-      loop t0 v0
+    semiprune' t0@(Pure (getRef -> r0)) =
+      loop t0 r0
     semiprune' t0@(Free f0) =
       return $ Semipruned t0 (TermS f0)
-    loop t0 (getRef -> r0) =
+    loop t0 r0 =
       readRef r0 >>=
       maybe
       (return $ Semipruned t0 (UnboundVarS r0))
       (\ t -> case t of
-          Pure v@(getRef -> r) -> do
-            sp@(Semipruned t' _) <- loop t v
+          Pure (getRef -> r) -> do
+            sp@(Semipruned t' _) <- loop t r
             writeRef r $ Just t'
             return sp
           Free f ->
