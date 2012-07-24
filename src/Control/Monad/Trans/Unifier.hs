@@ -64,10 +64,7 @@ unify :: ( Unifiable f
          , MapKey (ref (Maybe (Term f ref)))
          , MonadError (UnificationException f ref) m
          , MonadRef ref m
-         ) =>
-         Term f ref ->
-         Term f ref ->
-         m (Term f ref)
+         ) => Term f ref -> Term f ref -> m (Term f ref)
 unify = unify'
   where
     unify' t1 t2 =
@@ -152,10 +149,10 @@ data Semipruned f ref
 semiprune :: MonadRef ref m => Term f ref -> m (TermS f ref)
 semiprune = semiprune'
   where
-    semiprune' t0@(Free f0) =
-      return $ Semipruned t0 (TermS f0)
     semiprune' t0@(Pure v0) =
       loop t0 v0
+    semiprune' t0@(Free f0) =
+      return $ Semipruned t0 (TermS f0)
     loop t0 (getRef -> r0) =
       readRef r0 >>=
       maybe
@@ -172,12 +169,13 @@ freeVars :: ( Foldable f
             , SetElem (ref (Maybe (Term f ref)))
             , MonadRef ref m
             ) => Term f ref -> m (Set (ref (Maybe (Term f ref))))
-freeVars = foldlUnboundVarM (\ a -> return . flip Set.insert a) Set.empty
+freeVars = foldlUnboundVarsM (\ a -> return . flip Set.insert a) Set.empty
 
-foldlUnboundVarM :: ( Foldable f
-                    , MonadRef ref m
-                    ) => (a -> ref (Maybe (Term f ref)) -> m a) -> a -> Term f ref -> m a
-foldlUnboundVarM k = foldlM go
+foldlUnboundVarsM :: ( Foldable f
+                     , MonadRef ref m
+                     ) =>
+                     (a -> ref (Maybe (Term f ref)) -> m a) -> a -> Term f ref -> m a
+foldlUnboundVarsM k = foldlM go
   where
     go a (getRef -> r) =
       readRef r >>=
