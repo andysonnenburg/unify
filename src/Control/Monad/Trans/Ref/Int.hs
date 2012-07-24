@@ -39,12 +39,14 @@ instance MapKey (Ref s a) where
   empty = RefMap Map.empty
   lookup k = Map.lookup (unRef k) . unRefMap
   insert k v = RefMap . Map.insert (unRef k) v . unRefMap
+  member k = Map.member (unRef k) . unRefMap
 
 instance SetElem (Ref s a) where
   newtype Set (Ref s a) = RefSet { unRefSet :: Set Int }
   empty = RefSet Set.empty
   singleton = RefSet . Set.singleton . unRef
   insert e = RefSet . Set.insert (unRef e) . unRefSet
+  member e = Set.member (unRef e) . unRefSet
   union x y = RefSet $ Set.union (unRefSet x) (unRefSet y)
   toList = map Ref . Set.toList . unRefSet
 

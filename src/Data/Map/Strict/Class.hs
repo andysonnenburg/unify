@@ -15,6 +15,7 @@ class MapKey k where
   empty :: Map k v
   lookup :: k -> Map k v -> Maybe v
   insert :: k -> v -> Map k v -> Map k v
+  member :: k -> Map k v -> Bool
 
 newtype WrappedOrd k
   = WrapOrd { unwrapOrd :: k
@@ -27,6 +28,7 @@ instance Ord k => MapKey (WrappedOrd k) where
   empty = Map Map.empty
   lookup k = Map.lookup k . getMap
   insert k v = Map . Map.insert k v . getMap
+  member k = Map.member k . getMap
 
 newtype WrappedHashable k
   = WrapHashable { unwrapHashable :: k
@@ -43,6 +45,7 @@ instance (Eq k, Hashable k) => MapKey (WrappedHashable k) where
   empty = HashMap HashMap.empty
   lookup k = HashMap.lookup k . getHashMap
   insert k v = HashMap . HashMap.insert k v . getHashMap
+  member k = HashMap.member k . getHashMap
 
 instance MapKey Int where
   newtype Map Int v
@@ -51,3 +54,4 @@ instance MapKey Int where
   empty = IntMap IntMap.empty
   lookup k = IntMap.lookup k . getIntMap
   insert k v = IntMap . IntMap.insert k v . getIntMap
+  member k = IntMap.member k . getIntMap

@@ -172,14 +172,24 @@ freeVars :: ( Foldable f
 freeVars = foldlUnboundVarsM (\ a -> return . flip Set.insert a) Set.empty
 
 foldlUnboundVarsM :: ( Foldable f
+                     , SetElem (ref (Maybe (Term f ref)))
                      , MonadRef ref m
                      ) =>
                      (a -> ref (Maybe (Term f ref)) -> m a) -> a -> Term f ref -> m a
-foldlUnboundVarsM k = foldlM go
+foldlUnboundVarsM k a0 =
+  flip evalStateT Set.empty . foldlM go a0
   where
     go a (getRef -> r) =
-      readRef r >>=
-      maybe (k a r) (foldlM go a)
+      hasSeen r >>=
+      ifThenElse
+      (return a)
+      (seen r >>
+       readRef r >>=
+       maybe (lift $ k a r) (foldlM go a))
+    hasSeen r = gets $ Set.member r
+    seen r = modify $ Set.insert r
+    ifThenElse x _ True = x
+    ifThenElse _ x False = x
 
 freeze :: ( Traversable f
           , MapKey (ref (Maybe (Term f ref)))
@@ -205,10 +215,7 @@ unfreeze = Free . fmap (unfreeze . getFix)
 
 seenAs :: ( MapKey (ref (Maybe (Term f ref)))
           , MonadError (UnificationException f ref) m
-          ) =>
-          ref (Maybe (Term f ref)) ->
-          f (Term f ref) ->
-          StateT (S f ref) m ()
+          ) => ref (Maybe (Term f ref)) -> f (Term f ref) -> StateT (S f ref) m ()
 seenAs r0 f0 = do
   s <- get
   maybe

@@ -12,6 +12,7 @@ class SetElem e where
   empty :: Set e
   singleton :: e -> Set e
   insert :: e -> Set e -> Set e
+  member :: e -> Set e -> Bool
   union :: Set e -> Set e -> Set e
   toList :: Set e -> [e]
 
@@ -20,5 +21,6 @@ instance SetElem Int where
   empty = IntSet IntSet.empty
   singleton = IntSet . IntSet.singleton
   insert e = IntSet . IntSet.insert e . getIntSet
+  member e = IntSet.member e . getIntSet
   union x y = IntSet $ IntSet.union (getIntSet x) (getIntSet y)
   toList = IntSet.toList . getIntSet
