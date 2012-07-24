@@ -160,7 +160,7 @@ semiprune = semiprune'
       (\ t -> case t of
           Pure (getRef -> r) -> do
             sp@(Semipruned t' _) <- loop t r
-            writeRef r $ Just t'
+            writeRef r0 $ Just t'
             return sp
           Free f ->
             return $ Semipruned t0 (BoundVarS r0 f))
@@ -192,8 +192,8 @@ freeze = liftM getFix . freeze'
       flip evalStateT Map.empty . loop
     loop =
       semiprune >=> loop'
-    loop' (Semipruned _ (UnboundVarS var)) =
-      throwError $ UnboundVar var
+    loop' (Semipruned _ (UnboundVarS r)) =
+      throwError $ UnboundVar r
     loop' (Semipruned _ (BoundVarS r f)) = localState $ do
       r `seenAs` f
       liftM Fix . mapM loop $ f
