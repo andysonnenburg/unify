@@ -60,6 +60,7 @@ instance Set.Elem (Ref s a) where
   type Set (Ref s a) = RefSet s
   insert e = RefSet . Set.insert (unRef e) . unRefSet
   member e = Set.member (unRef e) . unRefSet
+  toList = fmap Ref . Set.toList . unRefSet
 
 type RefSupply s = RefSupplyT s Identity
 

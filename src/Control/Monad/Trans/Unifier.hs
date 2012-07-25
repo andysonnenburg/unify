@@ -29,7 +29,7 @@ import Data.Traversable
 
 import Control.Monad.Trans.Unifier.Map (Map, zero)
 import qualified Control.Monad.Trans.Unifier.Map as Map
-import Control.Monad.Trans.Unifier.Set (Set, mempty)
+import Control.Monad.Trans.Unifier.Set (mempty)
 import qualified Control.Monad.Trans.Unifier.Set as Set
 
 import Prelude hiding (mapM)
@@ -169,14 +169,14 @@ semiprune = semiprune'
 freeVars :: ( Foldable f
             , Set.Elem (ref (Maybe (Term f ref)))
             , MonadRef ref m
-            ) => Term f ref -> m (Set (ref (Maybe (Term f ref))))
-freeVars = foldlUnboundVarsM (\ a -> return . flip Set.insert a) mempty
+            ) => Term f ref -> m [ref (Maybe (Term f ref))]
+freeVars =
+  liftM Set.toList . foldlUnboundVarsM (\ a -> return . flip Set.insert a) mempty
 
 foldlUnboundVarsM :: ( Foldable f
                      , Set.Elem (ref (Maybe (Term f ref)))
                      , MonadRef ref m
-                     ) =>
-                     (a -> ref (Maybe (Term f ref)) -> m a) -> a -> Term f ref -> m a
+                     ) => (a -> ref (Maybe (Term f ref)) -> m a) -> a -> Term f ref -> m a
 foldlUnboundVarsM k a0 =
   flip evalStateT mempty . foldlM go a0
   where

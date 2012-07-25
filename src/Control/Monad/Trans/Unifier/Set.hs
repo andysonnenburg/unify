@@ -12,8 +12,10 @@ class Monoid (Set e) => Elem e where
   type Set e
   insert :: e -> Set e -> Set e
   member :: e -> Set e -> Bool
+  toList :: Set e -> [e]
 
 instance Elem Int where
   type Set Int = IntSet
   insert = IntSet.insert
   member = IntSet.member
+  toList = IntSet.toList
