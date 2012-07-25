@@ -1,15 +1,10 @@
 module Control.Monad.Ref
-       ( module X
-       , Ref
-       , RefSupply
-       , runRefSupply
-       , RefSupplyT
-       , runRefSupplyT
+       ( module Exports
        ) where
 
-import Control.Monad.Ref.Class as X
-import Control.Monad.Trans.Ref.Int (Ref,
-                                    RefSupply,
-                                    runRefSupply,
-                                    RefSupplyT,
-                                    runRefSupplyT)
+import Control.Monad.Ref.Class as Exports
+import Control.Monad.Trans.Ref.Int as Exports (Ref,
+                                               RefSupply,
+                                               runRefSupply,
+                                               RefSupplyT,
+                                               runRefSupplyT)
