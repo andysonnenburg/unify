@@ -25,13 +25,14 @@ import Control.Monad.State hiding (mapM)
 
 import Data.Fix
 import Data.Foldable
-import Data.Map.Strict.Class (Map, MapKey)
-import qualified Data.Map.Strict.Class as Map
-import Data.Set.Class (Set, SetElem)
-import qualified Data.Set.Class as Set
 import Data.Traversable
 
-import Prelude hiding (mapM)  
+import Control.Monad.Trans.Unifier.Map (Map, zero)
+import qualified Control.Monad.Trans.Unifier.Map as Map
+import Control.Monad.Trans.Unifier.Set (Set, mempty)
+import qualified Control.Monad.Trans.Unifier.Set as Set
+
+import Prelude hiding (mapM)
 
 newtype Var f ref
   = Var { getRef :: ref (Maybe (Term f ref))
@@ -61,14 +62,14 @@ freshTerm = liftM (Pure . Var) $ newRef Nothing
 
 unify :: ( Unifiable f
          , Eq (ref (Maybe (Term f ref)))
-         , MapKey (ref (Maybe (Term f ref)))
+         , Map.Key (ref (Maybe (Term f ref)))
          , MonadError (UnificationException f ref) m
          , MonadRef ref m
          ) => Term f ref -> Term f ref -> m (Term f ref)
 unify = unify'
   where
     unify' t1 t2 =
-      evalStateT (loop t1 t2) Map.empty
+      evalStateT (loop t1 t2) zero
     loop t1 t2 =
       bindM2 (semiprune t1) (semiprune t2) loop'
     loop'
@@ -166,18 +167,18 @@ semiprune = semiprune'
             return $ Semipruned t0 (BoundVarS r0 f))
 
 freeVars :: ( Foldable f
-            , SetElem (ref (Maybe (Term f ref)))
+            , Set.Elem (ref (Maybe (Term f ref)))
             , MonadRef ref m
             ) => Term f ref -> m (Set (ref (Maybe (Term f ref))))
-freeVars = foldlUnboundVarsM (\ a -> return . flip Set.insert a) Set.empty
+freeVars = foldlUnboundVarsM (\ a -> return . flip Set.insert a) mempty
 
 foldlUnboundVarsM :: ( Foldable f
-                     , SetElem (ref (Maybe (Term f ref)))
+                     , Set.Elem (ref (Maybe (Term f ref)))
                      , MonadRef ref m
                      ) =>
                      (a -> ref (Maybe (Term f ref)) -> m a) -> a -> Term f ref -> m a
 foldlUnboundVarsM k a0 =
-  flip evalStateT Set.empty . foldlM go a0
+  flip evalStateT mempty . foldlM go a0
   where
     go a (getRef -> r) =
       hasSeen r >>=
@@ -192,14 +193,14 @@ foldlUnboundVarsM k a0 =
     ifThenElse _ x False = x
 
 freeze :: ( Traversable f
-          , MapKey (ref (Maybe (Term f ref)))
+          , Map.Key (ref (Maybe (Term f ref)))
           , MonadError (UnificationException f ref) m
           , MonadRef ref m
           ) => Term f ref -> m (f (Fix f))
 freeze = liftM getFix . freeze'
   where
     freeze' =
-      flip evalStateT Map.empty . loop
+      flip evalStateT zero . loop
     loop =
       semiprune >=> loop'
     loop' (Semipruned _ (UnboundVarS r)) =
@@ -213,7 +214,7 @@ freeze = liftM getFix . freeze'
 unfreeze :: Functor f => f (Fix f) -> Term f ref
 unfreeze = Free . fmap (unfreeze . getFix)
 
-seenAs :: ( MapKey (ref (Maybe (Term f ref)))
+seenAs :: ( Map.Key (ref (Maybe (Term f ref)))
           , MonadError (UnificationException f ref) m
           ) => ref (Maybe (Term f ref)) -> f (Term f ref) -> StateT (S f ref) m ()
 seenAs r0 f0 = do

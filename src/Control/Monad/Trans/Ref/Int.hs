@@ -19,14 +19,14 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict hiding (get, gets, modify, put)
 import qualified Control.Monad.Trans.State.Strict as State
+import Control.Monad.Trans.Unifier.Map (Alt (..), Map, Plus (..))
+import qualified Control.Monad.Trans.Unifier.Map as Map
+import Control.Monad.Trans.Unifier.Set (Monoid (..), Set)
+import qualified Control.Monad.Trans.Unifier.Set as Set
 
 import Data.Functor.Identity
-import Data.IntMap.Lazy (IntMap, (!))
-import qualified Data.IntMap.Lazy as IntMap
-import Data.Map.Strict.Class (Map, MapKey)
-import qualified Data.Map.Strict.Class as Map
-import Data.Set.Class (Set, SetElem)
-import qualified Data.Set.Class as Set
+import Data.IntMap (IntMap, (!))
+import qualified Data.IntMap as IntMap
 
 import GHC.Exts (Any)
 
@@ -34,21 +34,32 @@ import Unsafe.Coerce (unsafeCoerce)
 
 newtype Ref s a = Ref { unRef :: Int } deriving (Eq, Show)
 
-instance MapKey (Ref s a) where
-  newtype Map (Ref s a) v = RefMap { unRefMap :: Map Int v }
-  empty = RefMap Map.empty
-  lookup k = Map.lookup (unRef k) . unRefMap
-  insert k v = RefMap . Map.insert (unRef k) v . unRefMap
-  member k = Map.member (unRef k) . unRefMap
+newtype RefMap s v = RefMap { unRefMap :: Map Int v }
 
-instance SetElem (Ref s a) where
-  newtype Set (Ref s a) = RefSet { unRefSet :: Set Int }
-  empty = RefSet Set.empty
-  singleton = RefSet . Set.singleton . unRef
+instance Functor (RefMap s) where
+  fmap f = RefMap . fmap f . unRefMap
+
+instance Alt (RefMap s) where
+  a <!> b = RefMap $ unRefMap a <!> unRefMap b
+
+instance Plus (RefMap s) where
+  zero = RefMap zero
+
+instance Map.Key (Ref s a) where
+  type Map (Ref s a) = RefMap s
+  insert k v = RefMap . Map.insert (unRef k) v . unRefMap
+  lookup k = Map.lookup (unRef k) . unRefMap
+
+newtype RefSet s = RefSet { unRefSet :: Set Int }
+
+instance Monoid (RefSet s) where
+  mempty = RefSet mempty
+  a `mappend` b = RefSet $ unRefSet a `mappend` unRefSet b
+
+instance Set.Elem (Ref s a) where
+  type Set (Ref s a) = RefSet s
   insert e = RefSet . Set.insert (unRef e) . unRefSet
   member e = Set.member (unRef e) . unRefSet
-  union x y = RefSet $ Set.union (unRefSet x) (unRefSet y)
-  toList = map Ref . Set.toList . unRefSet
 
 type RefSupply s = RefSupplyT s Identity
 
