@@ -1,6 +1,5 @@
 {-# LANGUAGE
     FlexibleContexts
-  , Rank2Types
   , StandaloneDeriving
   , UndecidableInstances
   , ViewPatterns #-}
