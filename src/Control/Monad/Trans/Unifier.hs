@@ -71,64 +71,46 @@ unify = unify'
       evalStateT (loop t1 t2) zero
     loop t1 t2 =
       bindM2 (semiprune t1) (semiprune t2) loop'
-    loop'
-      (Semipruned _ (UnboundVarS r1))
-      (Semipruned t2 (UnboundVarS r2))
+    loop' (S _ (UnboundVarS r1)) (S t2 (UnboundVarS r2))
       | r1 == r2 =
         return t2
       | otherwise = do
         writeRef r1 $ Just t2
         return t2
-    loop'
-      (Semipruned _ (UnboundVarS r1))
-      (Semipruned t2 (BoundVarS _ _)) = do
-        writeRef r1 $ Just t2
-        return t2
-    loop'
-      (Semipruned t1 (BoundVarS _ _))
-      (Semipruned _ (UnboundVarS r2)) = do
-        writeRef r2 $ Just t1
-        return t1
-    loop'
-      (Semipruned _ (BoundVarS r1 f1))
-      (Semipruned t2 (BoundVarS r2 f2))
+    loop' (S _ (UnboundVarS r1)) (S t2 (BoundVarS _ _)) = do
+      writeRef r1 $ Just t2
+      return t2
+    loop' (S t1 (BoundVarS _ _)) (S _ (UnboundVarS r2)) = do
+      writeRef r2 $ Just t1
+      return t1
+    loop' (S _ (BoundVarS r1 f1)) (S t2 (BoundVarS r2 f2))
       | r1 == r2 =
         return t2
       | otherwise = do
-        writeRef r2 .  Just <=< localState $ do
-          r1 `seenAs` f1
-          r2 `seenAs` f2
-          match f1 f2
-        writeRef r1 $ Just t2
-        return t2
-    loop'
-      (Semipruned t1 (UnboundVarS r1))
-      (Semipruned t2 (TermS _)) = do
-        writeRef r1 $ Just t2
-        return t1
-    loop'
-      (Semipruned t1 (TermS _))
-      (Semipruned t2 (UnboundVarS r2)) = do
-        writeRef r2 $ Just t1
-        return t2
-    loop'
-      (Semipruned t1 (BoundVarS r1 f1))
-      (Semipruned _ (TermS f2)) = do
-        writeRef r1 . Just <=< localState $ do
-          r1 `seenAs` f1
-          match f1 f2
-        return t1
-    loop'
-      (Semipruned _ (TermS f1))
-      (Semipruned t2 (BoundVarS r2 f2)) = do
         writeRef r2 . Just <=< localState $ do
+          r1 `seenAs` f1
           r2 `seenAs` f2
           match f1 f2
+        writeRef r1 $ Just t2
         return t2
-    loop'
-      (Semipruned _ (TermS f1))
-      (Semipruned _ (TermS f2)) =
+    loop' (S t1 (UnboundVarS r1)) (S t2 (TermS _)) = do
+      writeRef r1 $ Just t2
+      return t1
+    loop' (S t1 (TermS _)) (S t2 (UnboundVarS r2)) = do
+      writeRef r2 $ Just t1
+      return t2
+    loop' (S t1 (BoundVarS r1 f1)) (S _ (TermS f2)) = do
+      writeRef r1 . Just <=< localState $ do
+        r1 `seenAs` f1
         match f1 f2
+      return t1
+    loop' (S _ (TermS f1)) (S t2 (BoundVarS r2 f2)) = do
+      writeRef r2 . Just <=< localState $ do
+        r2 `seenAs` f2
+        match f1 f2
+      return t2
+    loop' (S _ (TermS f1)) (S _ (TermS f2)) =
+      match f1 f2
     match x y =
       maybe
       (throwError $ TermMismatch x y)
@@ -136,7 +118,7 @@ unify = unify'
       zipMatch x y
 
 data TermS f ref
-  = Semipruned !(Term f ref) !(Semipruned f ref)
+  = S !(Term f ref) !(Semipruned f ref)
 
 data Semipruned f ref
   = TermS !(f (Term f ref))
@@ -149,18 +131,18 @@ semiprune = semiprune'
     semiprune' t0@(Pure (getRef -> r0)) =
       loop t0 r0
     semiprune' t0@(Free f0) =
-      return $ Semipruned t0 (TermS f0)
+      return $ S t0 (TermS f0)
     loop t0 r0 =
       readRef r0 >>=
       maybe
-      (return $ Semipruned t0 (UnboundVarS r0))
+      (return $ S t0 (UnboundVarS r0))
       (\ t -> case t of
           Pure (getRef -> r) -> do
-            sp@(Semipruned t' _) <- loop t r
+            sp@(S t' _) <- loop t r
             writeRef r0 $ Just t'
             return sp
           Free f ->
-            return $ Semipruned t0 (BoundVarS r0 f))
+            return $ S t0 (BoundVarS r0 f))
 
 freeVars :: ( Foldable f
             , Set.Elem (ref (Maybe (Term f ref)))
@@ -201,12 +183,12 @@ freeze = liftM getFix . freeze'
       flip evalStateT zero . loop
     loop =
       semiprune >=> loop'
-    loop' (Semipruned _ (UnboundVarS r)) =
+    loop' (S _ (UnboundVarS r)) =
       throwError $ UnboundVar r
-    loop' (Semipruned _ (BoundVarS r f)) = localState $ do
+    loop' (S _ (BoundVarS r f)) = localState $ do
       r `seenAs` f
       liftM Fix . mapM loop $ f
-    loop' (Semipruned _ (TermS f)) =
+    loop' (S _ (TermS f)) =
       liftM Fix . mapM loop $ f
 
 unfreeze :: Functor f => f (Fix f) -> Term f ref
