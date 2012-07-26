@@ -95,11 +95,10 @@ unify = unify'
       | r1 == r2 =
         return t2
       | otherwise = do
-        t <- localState $ do
+        writeRef r2 .  Just <=< localState $ do
           r1 `seenAs` f1
           r2 `seenAs` f2
           match f1 f2
-        writeRef r2 $ Just t
         writeRef r1 $ Just t2
         return t2
     loop'
@@ -115,18 +114,16 @@ unify = unify'
     loop'
       (Semipruned t1 (BoundVarS r1 f1))
       (Semipruned _ (TermS f2)) = do
-        f <- localState $ do
+        writeRef r1 . Just <=< localState $ do
           r1 `seenAs` f1
           match f1 f2
-        writeRef r1 $ Just f
         return t1
     loop'
       (Semipruned _ (TermS f1))
       (Semipruned t2 (BoundVarS r2 f2)) = do
-        f <- localState $ do
+        writeRef r2 . Just <=< localState $ do
           r2 `seenAs` f2
           match f1 f2
-        writeRef r2 $ Just f
         return t2
     loop'
       (Semipruned _ (TermS f1))
@@ -186,8 +183,10 @@ foldlUnboundVarsM k a0 =
       (seen r >>
        readRef r >>=
        maybe (lift $ k a r) (foldlM go a))
-    hasSeen r = gets $ Set.member r
-    seen r = modify $ Set.insert r
+    hasSeen r =
+      gets $ Set.member r
+    seen r =
+      modify $ Set.insert r
     ifThenElse x _ True = x
     ifThenElse _ x False = x
 

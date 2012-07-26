@@ -45,8 +45,6 @@ executable ref
                  transformers,
                  mtl,
                  containers >= 0.5,
-                 hashable,
-                 unordered-containers >= 0.2.1,
                  semigroupoids,
                  free
   other-modules: Control.Monad.Ref.Class
