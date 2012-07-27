@@ -21,8 +21,8 @@ instance Unifiable Type where
       go _ _ = Nothing
 
 main :: IO ()
-main = runRefSupplyT $
-  either (fail . show) return <=< runErrorT $ do
+main = runShowRefSupplyT $
+  either (fail . show) return <=< runUnifierT $ do
     a <- freshTerm
     b <- freshTerm
     c <- freshTerm
@@ -37,3 +37,4 @@ main = runRefSupplyT $
     d <- freshTerm
     d <- unify d (wrap $ d :-> d)
     liftIO . print =<< freeVars d
+    liftIO . print =<< freeze d
