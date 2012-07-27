@@ -27,8 +27,13 @@ main = runRefSupplyT $
     b <- freshTerm
     c <- freshTerm
     c <- unify c (wrap $ a :-> b)
+    liftIO . print =<< freeVars c
     a <- unify a b
+    liftIO . print =<< freeVars c
     a <- unify a (wrap $ Var 0)
     liftIO . print =<< freeze a
     liftIO . print =<< freeze b
     liftIO . print =<< freeze c
+    d <- freshTerm
+    d <- unify d (wrap $ d :-> d)
+    liftIO . print =<< freeVars d

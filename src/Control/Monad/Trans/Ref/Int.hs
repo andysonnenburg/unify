@@ -130,7 +130,8 @@ readRef ref = gets $ unsafeCoerce . (!unRef ref) . refMap
 writeRef :: Monad m => Ref s a -> a -> RefSupplyT s m ()
 writeRef ref a = modify f
   where
-    f s@S {..} = s { refMap = IntMap.insert (unRef ref) (unsafeCoerce a) refMap }
+    f s@S {..} =
+      s { refMap = IntMap.insert (unRef ref) (unsafeCoerce a) refMap }
 
 modifyRef :: Monad m => Ref s a -> (a -> a) -> RefSupplyT s m ()
 modifyRef ref f =
