@@ -5,8 +5,6 @@
   , ViewPatterns #-}
 module Control.Monad.Trans.Unifier
        ( module Exports
-       , UnifierT
-       , runUnifierT
        , Term
        , Var
        , Unifiable (..)
@@ -30,18 +28,10 @@ import Data.Functor.Plus
 import Data.Monoid
 import Data.Traversable
 
-import Control.Monad.Trans.Unifier.Either hiding (Either)
 import qualified Control.Monad.Trans.Unifier.Map as Map
 import qualified Control.Monad.Trans.Unifier.Set as Set
 
 import Prelude hiding (mapM)
-
-type UnifierT f ref m = EitherT (UnificationException f ref) m
-
-runUnifierT :: MonadRef ref m =>
-               UnifierT f ref m a ->
-               m (Either (UnificationException f ref) a)
-runUnifierT = runEitherT
 
 newtype Var f ref
   = Var { getRef :: ref (Maybe (Term f ref))

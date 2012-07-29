@@ -4,8 +4,8 @@
   , DeriveTraversable #-}
 module Main (main) where
 
-import Control.Monad.Error
-import Control.Monad.Ref
+import Control.Monad.Error.Wrap
+import qualified Control.Monad.Ref.Show as Show
 import Control.Monad.Trans.Unifier
 
 import Data.Foldable
@@ -21,8 +21,8 @@ instance Unifiable Type where
       go _ _ = Nothing
 
 main :: IO ()
-main = runShowRefSupplyT $
-  either (fail . show) return <=< runUnifierT $ do
+main = Show.runRefSupplyT $
+  either (fail . show) return <=< runWrappedErrorT $ do
     a <- freshTerm
     b <- freshTerm
     c <- freshTerm

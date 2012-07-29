@@ -44,7 +44,6 @@ executable ref
   build-depends: base,
                  transformers,
                  mtl,
-                 monad-st,
                  containers >= 0.5,
                  semigroupoids,
                  free

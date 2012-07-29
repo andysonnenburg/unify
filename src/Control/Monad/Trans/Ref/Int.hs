@@ -15,6 +15,7 @@ module Control.Monad.Trans.Ref.Int
        ) where
 
 import Control.Applicative
+import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict hiding (get, gets, modify, put)
@@ -34,30 +35,30 @@ import Unsafe.Coerce (unsafeCoerce)
 
 newtype Ref s a = Ref { unRef :: Int } deriving (Eq, Show)
 
-newtype RefMap s v = RefMap { unRefMap :: Map Int v }
+newtype RefMap s a v = RefMap { unRefMap :: Map Int v }
 
-instance Functor (RefMap s) where
+instance Functor (RefMap s a) where
   fmap f = RefMap . fmap f . unRefMap
 
-instance Alt (RefMap s) where
+instance Alt (RefMap s a) where
   a <!> b = RefMap $ unRefMap a <!> unRefMap b
 
-instance Plus (RefMap s) where
+instance Plus (RefMap s a) where
   zero = RefMap zero
 
 instance Map.Key (Ref s a) where
-  type Map (Ref s a) = RefMap s
+  type Map (Ref s a) = RefMap s a
   insert k v = RefMap . Map.insert (unRef k) v . unRefMap
   lookup k = Map.lookup (unRef k) . unRefMap
 
-newtype RefSet s = RefSet { unRefSet :: Set Int }
+newtype RefSet s a = RefSet { unRefSet :: Set Int }
 
-instance Monoid (RefSet s) where
+instance Monoid (RefSet s a) where
   mempty = RefSet mempty
   a `mappend` b = RefSet $ unRefSet a `mappend` unRefSet b
 
 instance Set.Elem (Ref s a) where
-  type Set (Ref s a) = RefSet s
+  type Set (Ref s a) = RefSet s a
   insert e = RefSet . Set.insert (unRef e) . unRefSet
   member e = Set.member (unRef e) . unRefSet
   toList = fmap Ref . Set.toList . unRefSet
@@ -86,6 +87,9 @@ instance Monad m => Monad (RefSupplyT s m) where
   m >>= k = RefSupplyT $ unRefSupplyT m >>= unRefSupplyT . k
   m >> n = RefSupplyT $ unRefSupplyT m >> unRefSupplyT n
   fail = RefSupplyT . fail
+
+instance MonadFix m => MonadFix (RefSupplyT s m) where
+  mfix = RefSupplyT . mfix . (unRefSupplyT .)
 
 instance MonadTrans (RefSupplyT s) where
   lift = RefSupplyT . lift
