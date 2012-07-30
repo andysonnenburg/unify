@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleContexts, TypeFamilies #-}
-module Control.Monad.Trans.Unifier.Set
+module Control.Monad.Unify.Set
        ( module Exports
        , Elem (..)
        ) where
@@ -9,7 +9,7 @@ import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
 import qualified Data.Set as Set
 
-import Control.Monad.Trans.Unifier.Base as Exports
+import Control.Monad.Unify.Base as Exports
 
 class Monoid (Set e) => Elem e where
   type Set e

@@ -1,4 +1,4 @@
-module Control.Monad.Trans.Unifier.Base
+module Control.Monad.Unify.Base
        ( WrappedOrd (..)
        ) where
 

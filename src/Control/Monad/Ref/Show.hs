@@ -14,10 +14,10 @@ import Control.Monad.Fix as Exports
 import Control.Monad.Ref.Class
 import Control.Monad.Trans as Exports
 import Control.Monad.Trans.State.Strict
-import Control.Monad.Trans.Unifier.Map (Alt (..), Map, Plus (..))
-import qualified Control.Monad.Trans.Unifier.Map as Map
-import Control.Monad.Trans.Unifier.Set (Monoid (..), Set)
-import qualified Control.Monad.Trans.Unifier.Set as Set
+import Control.Monad.Unify.Map (Alt (..), Map, Plus (..))
+import qualified Control.Monad.Unify.Map as Map
+import Control.Monad.Unify.Set (Monoid (..), Set)
+import qualified Control.Monad.Unify.Set as Set
 
 import qualified Data.IntMap as Map (elems)
 import Data.Maybe

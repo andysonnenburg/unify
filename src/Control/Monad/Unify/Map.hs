@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleContexts, TypeFamilies #-}
-module Control.Monad.Trans.Unifier.Map
+module Control.Monad.Unify.Map
        ( module Exports
        , Key (..)
        ) where
@@ -9,7 +9,7 @@ import Data.IntMap.Lazy (IntMap)
 import qualified Data.IntMap.Lazy as IntMap
 import qualified Data.Map.Lazy as Map
 
-import Control.Monad.Trans.Unifier.Base as Exports
+import Control.Monad.Unify.Base as Exports
 
 class Plus (Map k) => Key k where
   type Map k :: * -> *

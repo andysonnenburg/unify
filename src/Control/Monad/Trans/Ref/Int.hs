@@ -20,10 +20,10 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict hiding (get, gets, modify, put)
 import qualified Control.Monad.Trans.State.Strict as State
-import Control.Monad.Trans.Unifier.Map (Alt (..), Map, Plus (..))
-import qualified Control.Monad.Trans.Unifier.Map as Map
-import Control.Monad.Trans.Unifier.Set (Monoid (..), Set)
-import qualified Control.Monad.Trans.Unifier.Set as Set
+import Control.Monad.Unify.Map (Alt (..), Map, Plus (..))
+import qualified Control.Monad.Unify.Map as Map
+import Control.Monad.Unify.Set (Monoid (..), Set)
+import qualified Control.Monad.Unify.Set as Set
 
 import Data.Functor.Identity
 import Data.IntMap (IntMap, (!))

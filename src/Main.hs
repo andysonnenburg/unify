@@ -6,7 +6,7 @@ module Main (main) where
 
 import Control.Monad.Error.Wrap
 import qualified Control.Monad.Ref.Show as Show
-import Control.Monad.Trans.Unifier
+import Control.Monad.Unify
 
 import Data.Foldable
 import Data.Traversable

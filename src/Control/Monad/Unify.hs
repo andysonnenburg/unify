@@ -3,7 +3,7 @@
   , StandaloneDeriving
   , UndecidableInstances
   , ViewPatterns #-}
-module Control.Monad.Trans.Unifier
+module Control.Monad.Unify
        ( module Exports
        , Term
        , Var
@@ -28,8 +28,8 @@ import Data.Functor.Plus
 import Data.Monoid
 import Data.Traversable
 
-import qualified Control.Monad.Trans.Unifier.Map as Map
-import qualified Control.Monad.Trans.Unifier.Set as Set
+import qualified Control.Monad.Unify.Map as Map
+import qualified Control.Monad.Unify.Set as Set
 
 import Prelude hiding (mapM)
 
