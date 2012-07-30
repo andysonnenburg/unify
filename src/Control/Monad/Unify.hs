@@ -169,16 +169,16 @@ semiprune = semiprune'
     semiprune' t0@(Free f0) =
       return $ S t0 (TermS f0)
     loop t0 r0 =
-      readRef r0 >>=
-      maybe
-      (return $ S t0 (UnboundVarS r0))
-      (\ t -> case t of
-          Pure (Var r) -> do
-            sp@(S t' _) <- loop t r
-            writeRef r0 $ Just t'
-            return sp
-          Free f ->
-            return $ S t0 (BoundVarS r0 f))
+      readRef r0 >>= loop'
+      where
+        loop' Nothing =
+          return $ S t0 (UnboundVarS r0)
+        loop' (Just t1@(Pure (Var r1))) = do
+          sp@(S t _) <- loop t1 r1
+          writeRef r0 $ Just t
+          return sp
+        loop' (Just (Free f)) =
+          return $ S t0 (BoundVarS r0 f)
 
 freeVars :: ( Foldable f
             , Set.Elem (ref (Maybe (Term f ref)))
