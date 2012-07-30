@@ -63,9 +63,9 @@ instance Map.Key (ref (Maybe (Term f ref))) => Map.Key (Var f ref) where
 type Term f ref = Free f (Var f ref)
 
 data UnificationException f ref
-  = OccursIn (ref (Maybe (Term f ref))) (f (Term f ref))
+  = OccursIn (Var f ref) (f (Term f ref))
   | TermMismatch (f (Term f ref)) (f (Term f ref))
-  | UnboundVar (ref (Maybe (Term f ref)))
+  | UnboundVar (Var f ref)
 
 deriving instance ( Show (f (Term f ref))
                   , Show (ref (Maybe (Term f ref)))
@@ -134,11 +134,11 @@ unify = unify'
       (throwError $ TermMismatch x y)
       (liftM Free . mapM (uncurry loop)) $
       zipMatch x y
-    seenAs r0 f0 = do
+    r0 `seenAs` f0 = do
       s <- get
       maybe
         (put $! Map.insert r0 f0 s)
-        (\ f -> throwError $ r0 `OccursIn` f) $
+        (\ f -> throwError $ Var r0 `OccursIn` f) $
         Map.lookup r0 s
 
 data TermS f ref
@@ -213,7 +213,7 @@ freeze =
     loop =
       semiprune >=> loop'
     loop' (S _ (UnboundVarS r)) =
-      throwError $ UnboundVar r
+      throwError $ UnboundVar $ Var r
     loop' (S _ (BoundVarS r f)) =
       whenUnseen r $ do
         r `mustNotOccurIn` f
@@ -226,7 +226,7 @@ freeze =
       s <- get
       case Map.lookup r s of
         Nothing -> m
-        Just (Left f) -> throwError $ r `OccursIn` f
+        Just (Left f) -> throwError $ Var r `OccursIn` f
         Just (Right f) -> return f
     r `mustNotOccurIn` f =
       modify $ Map.insert r (Left f)
