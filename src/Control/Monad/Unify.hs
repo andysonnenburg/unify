@@ -46,7 +46,6 @@ data UnificationException f ref
 
 deriving instance ( Show (f (Term f ref))
                   , Show (ref (Maybe (Term f ref)))
-                  , Show (Term f ref)
                   ) => Show (UnificationException f ref)
 
 class Traversable f => Unifiable f where
@@ -187,32 +186,31 @@ freeze :: ( Traversable f
           , MonadError (UnificationException f ref) m
           , MonadRef ref m
           ) => Term f ref -> m (f (Fix f))
-freeze = liftM getFix . freeze'
+freeze =
+  liftM getFix . flip evalStateT zero . loop
   where
-    freeze' =
-      flip evalStateT zero . loop
     loop =
       semiprune >=> loop'
     loop' (S _ (UnboundVarS r)) =
       throwError $ UnboundVar r
     loop' (S _ (BoundVarS r f)) =
-      whenUnseen r f $ do
-        seen r
+      whenUnseen r $ do
+        r `mustNotOccurIn` f
         f' <- liftM Fix . mapM loop $ f
         r `seenAs` f'
         return f'
     loop' (S _ (TermS f)) =
       liftM Fix . mapM loop $ f
-    whenUnseen r f m = do
+    whenUnseen r m = do
       s <- get
       case Map.lookup r s of
         Nothing -> m
-        Just Nothing -> throwError $ r `OccursIn` f
-        Just (Just f') -> return f'
-    seen r =
-      modify $ Map.insert r Nothing
-    r `seenAs` f' =
-      modify $ Map.insert r (Just f')
+        Just (Left f) -> throwError $ r `OccursIn` f
+        Just (Right f) -> return f
+    r `mustNotOccurIn` f =
+      modify $ Map.insert r (Left f)
+    r `seenAs` f =
+      modify $ Map.insert r (Right f)
 
 unfreeze :: Functor f => f (Fix f) -> Term f ref
 unfreeze = Free . fmap (unfreeze . getFix)
