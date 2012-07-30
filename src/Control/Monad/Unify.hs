@@ -1,12 +1,12 @@
 {-# LANGUAGE
     FlexibleContexts
   , StandaloneDeriving
-  , UndecidableInstances
-  , ViewPatterns #-}
+  , TypeFamilies
+  , UndecidableInstances #-}
 module Control.Monad.Unify
        ( module Exports
-       , Term
        , Var
+       , Term
        , Unifiable (..)
        , UnificationException (..)
        , freshTerm
@@ -24,18 +24,41 @@ import Control.Monad.State hiding (mapM)
 
 import Data.Fix
 import Data.Foldable
-import Data.Functor.Plus
 import Data.Monoid
 import Data.Traversable
 
+import Control.Monad.Unify.Map (Alt (..), Map, Plus (..))
 import qualified Control.Monad.Unify.Map as Map
 import qualified Control.Monad.Unify.Set as Set
 
 import Prelude hiding (mapM)
 
-newtype Var f ref
-  = Var { getRef :: ref (Maybe (Term f ref))
-        }
+newtype Var f ref = Var (ref (Maybe (Term f ref)))
+
+deriving instance Eq (ref (Maybe (Term f ref))) => Eq (Var f ref)
+
+instance Show (ref (Maybe (Term f ref))) => Show (Var f ref) where
+  showsPrec p (Var r) = showsPrec p r
+  show (Var r) = show r
+
+newtype VarMap f ref v = VarMap { unVarMap :: Map (ref (Maybe (Term f ref))) v }
+
+instance Functor (Map (ref (Maybe (Free f (Var f ref))))) =>
+         Functor (VarMap f ref) where
+  fmap f = VarMap . fmap f . unVarMap
+
+instance Alt (Map (ref (Maybe (Free f (Var f ref))))) =>
+         Alt (VarMap f ref) where
+  a <!> b = VarMap $ unVarMap a <!> unVarMap b
+
+instance Plus (Map (ref (Maybe (Free f (Var f ref))))) =>
+         Plus (VarMap f ref) where
+  zero = VarMap zero
+
+instance Map.Key (ref (Maybe (Term f ref))) => Map.Key (Var f ref) where
+  type Map (Var f ref) = VarMap f ref
+  insert (Var r) v = VarMap . Map.insert r v . unVarMap
+  lookup (Var r) = Map.lookup r . unVarMap
 
 type Term f ref = Free f (Var f ref)
 
@@ -50,8 +73,6 @@ deriving instance ( Show (f (Term f ref))
 
 class Traversable f => Unifiable f where
   zipMatch :: f a -> f b -> Maybe (f (a, b))
-
-deriving instance Show (ref (Maybe (Term f ref))) => Show (Var f ref)
 
 freshTerm :: MonadRef ref m => m (Term f ref)
 freshTerm = liftM (Pure . Var) $ newRef Nothing
@@ -131,7 +152,7 @@ data Semipruned f ref
 semiprune :: MonadRef ref m => Term f ref -> m (TermS f ref)
 semiprune = semiprune'
   where
-    semiprune' t0@(Pure (getRef -> r0)) =
+    semiprune' t0@(Pure (Var r0)) =
       loop t0 r0
     semiprune' t0@(Free f0) =
       return $ S t0 (TermS f0)
@@ -140,7 +161,7 @@ semiprune = semiprune'
       maybe
       (return $ S t0 (UnboundVarS r0))
       (\ t -> case t of
-          Pure (getRef -> r) -> do
+          Pure (Var r) -> do
             sp@(S t' _) <- loop t r
             writeRef r0 $ Just t'
             return sp
