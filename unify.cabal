@@ -1,0 +1,61 @@
+name: unify
+version: 0.1
+
+-- A short (one-line) description of the package.
+-- Synopsis:            
+
+-- A longer description of the package.
+-- Description:         
+
+license: BSD3
+license-file: LICENSE
+author: Andy Sonnenburg
+maintainer: andy22286@gmail.com
+
+-- A copyright notice.
+-- Copyright:           
+
+category: Control
+build-type: Simple
+
+-- Extra files to be distributed with the package, such as examples or
+-- a README.
+extra-source-files: README
+cabal-version: >= 1.8
+
+library
+  hs-source-dirs: src
+  build-depends:
+    base,
+    transformers,
+    mtl,
+    containers >= 0.5,
+    semigroupoids,
+    free
+  exposed-modules:
+    Control.Monad.Error.Wrap
+    Control.Monad.Ref.Class
+    Control.Monad.Ref
+    Control.Monad.Ref.Show
+    Control.Monad.Trans.Ref.Int
+    Control.Monad.Unify
+    Control.Monad.Unify.Map
+    Control.Monad.Unify.Set
+    Data.Fix
+  other-modules:
+    Control.Monad.Unify.Base
+  ghc-options: -Wall -Werror
+  -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
+  -- Build-tools:         
+
+executable unify-main
+  hs-source-dirs: examples/unify-main
+  main-is: Main.hs
+  build-depends: base, unify
+  ghc-options: -Wall
+
+executable: unify-hm
+  hs-source-dirs: examples/unify-hm
+  main-is: Main.hs
+  build-depends: base, unify
+  ghc-options: -Wall
