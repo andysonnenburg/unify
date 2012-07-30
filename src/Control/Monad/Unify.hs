@@ -24,11 +24,11 @@ import Control.Monad.State hiding (mapM)
 
 import Data.Fix
 import Data.Foldable
-import Data.Monoid
 import Data.Traversable
 
 import Control.Monad.Unify.Map (Alt (..), Map, Plus (..))
 import qualified Control.Monad.Unify.Map as Map
+import Control.Monad.Unify.Set (Monoid (..), Set)
 import qualified Control.Monad.Unify.Set as Set
 
 import Prelude hiding (mapM)
@@ -59,6 +59,18 @@ instance Map.Key (ref (Maybe (Term f ref))) => Map.Key (Var f ref) where
   type Map (Var f ref) = VarMap f ref
   insert (Var r) v = VarMap . Map.insert r v . unVarMap
   lookup (Var r) = Map.lookup r . unVarMap
+
+newtype VarSet f ref = VarSet { unVarSet :: Set (ref (Maybe (Term f ref))) }
+
+instance Monoid (Set (ref (Maybe (Term f ref)))) => Monoid (VarSet f ref) where
+  mempty = VarSet mempty
+  a `mappend` b = VarSet $ unVarSet a `mappend` unVarSet b
+
+instance Set.Elem (ref (Maybe (Term f ref))) => Set.Elem (Var f ref) where
+  type Set (Var f ref) = VarSet f ref
+  insert (Var r) = VarSet . Set.insert r . unVarSet
+  member (Var r) = Set.member r . unVarSet
+  toList = fmap Var . Set.toList . unVarSet
 
 type Term f ref = Free f (Var f ref)
 
@@ -171,7 +183,7 @@ semiprune = semiprune'
 freeVars :: ( Foldable f
             , Set.Elem (ref (Maybe (Term f ref)))
             , MonadRef ref m
-            ) => Term f ref -> m [ref (Maybe (Term f ref))]
+            ) => Term f ref -> m [Var f ref]
 freeVars =
   liftM Set.toList .
   foldlUnboundVarsM (\ a -> return . flip Set.insert a) mempty
@@ -179,14 +191,14 @@ freeVars =
 foldlUnboundVarsM :: ( Foldable f
                      , Set.Elem (ref (Maybe (Term f ref)))
                      , MonadRef ref m
-                     ) => (a -> ref (Maybe (Term f ref)) -> m a) -> a -> Term f ref -> m a
+                     ) => (a -> Var f ref -> m a) -> a -> Term f ref -> m a
 foldlUnboundVarsM k a0 =
   flip evalStateT mempty . loop a0
   where
     loop a =
       semiprune >=> loop' a
     loop' a (S _ (UnboundVarS r)) =
-      lift $ k a r
+      lift $ k a $ Var r
     loop' a (S _ (BoundVarS r f)) =
       ifM (hasSeen r)
       (return a) $ do
