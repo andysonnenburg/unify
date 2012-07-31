@@ -54,7 +54,7 @@ executable unify-main
   build-depends: base, unify
   ghc-options: -Wall
 
-executable: unify-hm
+executable unify-hm
   hs-source-dirs: examples/unify-hm
   main-is: Main.hs
   build-depends: base, unify

@@ -8,7 +8,7 @@ module Control.Monad.Unify
        , Var
        , Term
        , Unifiable (..)
-       , UnificationException (..)
+       , UnificationError (..)
        , freshTerm
        , unify
        , freeVars
@@ -17,7 +17,7 @@ module Control.Monad.Unify
        ) where
 
 import Control.Monad hiding (mapM)
-import Control.Monad.Error hiding (mapM)
+import Control.Monad.Error.Class
 import Control.Monad.Free as Exports
 import Control.Monad.Ref.Class
 import Control.Monad.State hiding (mapM)
@@ -74,14 +74,14 @@ instance Set.Elem (ref (Maybe (Term f ref))) => Set.Elem (Var f ref) where
 
 type Term f ref = Free f (Var f ref)
 
-data UnificationException f ref
+data UnificationError f ref
   = OccursIn (Var f ref) (f (Term f ref))
   | TermMismatch (f (Term f ref)) (f (Term f ref))
   | UnboundVar (Var f ref)
 
 deriving instance ( Show (f (Term f ref))
                   , Show (ref (Maybe (Term f ref)))
-                  ) => Show (UnificationException f ref)
+                  ) => Show (UnificationError f ref)
 
 class Traversable f => Unifiable f where
   zipMatch :: f a -> f b -> Maybe (f (a, b))
@@ -92,7 +92,7 @@ freshTerm = liftM (Pure . Var) $ newRef Nothing
 unify :: ( Unifiable f
          , Eq (ref (Maybe (Term f ref)))
          , Map.Key (ref (Maybe (Term f ref)))
-         , MonadError (UnificationException f ref) m
+         , MonadError (UnificationError f ref) m
          , MonadRef ref m
          ) => Term f ref -> Term f ref -> m (Term f ref)
 unify = unify'
@@ -216,7 +216,7 @@ foldlUnboundVarsM k a0 =
 
 freeze :: ( Traversable f
           , Map.Key (ref (Maybe (Term f ref)))
-          , MonadError (UnificationException f ref) m
+          , MonadError (UnificationError f ref) m
           , MonadRef ref m
           ) => Term f ref -> m (f (Fix f))
 freeze =
