@@ -53,5 +53,10 @@ executable unify-main
 executable unify-hm
   hs-source-dirs: examples/unify-hm
   main-is: Main.hs
-  build-depends: base, unify
+  build-depends:
+    base,
+    mtl,
+    hashable,
+    unordered-containers >= 0.2.1.0,
+    unify
   ghc-options: -Wall
