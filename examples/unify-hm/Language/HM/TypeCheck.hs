@@ -1,30 +1,26 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE
+    ConstraintKinds
+  , FlexibleContexts #-}
 module Language.HM.TypeCheck
        ( typeCheck
        ) where
 
 import Control.Applicative
 import Control.Category ((<<<))
-import Control.Monad.Error.Class
 import Control.Monad.Reader hiding (forM_)
-import Control.Monad.Ref.Class
 import Control.Monad.State hiding (forM_)
 import Control.Monad.Unify
 
 import Data.Fix
 import Data.Foldable
-import Data.Hashable
 import Data.HashMap.Lazy ((!))
 import qualified Data.HashMap.Lazy as Map
 
 import Language.HM.Syntax as E
 import Language.HM.Type as T
 
-typeCheck :: ( Eq (ref (Maybe (Term (Type Int) ref)))
-             , Hashable (ref (Maybe (Term (Type Int) ref)))
-             , MonadError (UnificationError (Type Int) ref) m
-             , MonadRef ref m
-             ) => Exp Int (Fix (Exp Int)) -> m (Type Int (Fix (Type Int)))
+typeCheck :: MonadUnify (Type Int) ref m =>
+             Exp Int (Fix (Exp Int)) -> m (Type Int (Fix (Type Int)))
 typeCheck =
   flip evalStateT 0 <<<
   flip runReaderT Map.empty <<<
@@ -50,10 +46,7 @@ typeCheck =
     loop (E.Bool _) =
       return . wrap $ T.Bool
 
-generalize :: ( Eq (ref (Maybe (Term (Type Int) ref)))
-              , Hashable (ref (Maybe (Term (Type Int) ref)))
-              , MonadError (UnificationError (Type Int) ref) m
-              , MonadRef ref m
+generalize :: ( MonadUnify (Type Int) ref m
               , MonadState Int m
               ) => Term (Type Int) ref -> m (Term (Type Int) ref)
 generalize t = do

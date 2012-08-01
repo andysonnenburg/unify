@@ -1,5 +1,6 @@
 {-# LANGUAGE
-    FlexibleContexts
+    ConstraintKinds
+  , FlexibleContexts
   , StandaloneDeriving
   , TypeFamilies
   , UndecidableInstances #-}
@@ -9,6 +10,7 @@ module Control.Monad.Unify
        , Term
        , Unifiable (..)
        , UnificationError (..)
+       , MonadUnify
        , freshTerm
        , unify
        , freeVars
@@ -57,12 +59,14 @@ class Traversable f => Unifiable f where
 freshTerm :: MonadRef ref m => m (Term f ref)
 freshTerm = liftM (Pure . Var) $ newRef Nothing
 
-unify :: ( Unifiable f
-         , Eq (ref (Maybe (Term f ref)))
-         , Hashable (ref (Maybe (Term f ref)))
-         , MonadError (UnificationError f ref) m
-         , MonadRef ref m
-         ) => Term f ref -> Term f ref -> m (Term f ref)
+type MonadUnify f ref m = ( Unifiable f
+                          , Eq (ref (Maybe (Term f ref)))
+                          , Hashable (ref (Maybe (Term f ref)))
+                          , MonadError (UnificationError f ref) m
+                          , MonadRef ref m
+                          )
+
+unify :: MonadUnify f ref m => Term f ref -> Term f ref -> m (Term f ref)
 unify = unify'
   where
     unify' t1 t2 =
