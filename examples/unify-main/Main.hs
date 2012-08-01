@@ -2,6 +2,7 @@
     DeriveFunctor
   , DeriveFoldable
   , DeriveTraversable #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Main (main) where
 
 import Control.Monad.Error.Wrap
