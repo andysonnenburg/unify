@@ -14,13 +14,8 @@ import Control.Monad.Fix as Exports
 import Control.Monad.Ref.Class
 import Control.Monad.Trans as Exports
 import Control.Monad.Trans.State.Strict
-import Control.Monad.Unify.Map (Alt (..), Map, Plus (..))
-import qualified Control.Monad.Unify.Map as Map
-import Control.Monad.Unify.Set (Monoid (..), Set)
-import qualified Control.Monad.Unify.Set as Set
 
-import qualified Data.IntMap as Map (elems)
-import Data.Maybe
+import Data.Hashable
 
 data Ref ref a = Ref !(ref a) !Int
 
@@ -33,33 +28,9 @@ instance Ord (Ref ref a) where
 instance Show (Ref ref a) where
   show (Ref _ x) = show x
 
-newtype RefMap (ref :: * -> *) a v = RefMap { unRefMap :: Map Int v }
-
-instance Functor (RefMap ref a) where
-  fmap f = RefMap . fmap f . unRefMap
-
-instance Alt (RefMap ref a) where
-  a <!> b = RefMap $ unRefMap a <!> unRefMap b
-
-instance Plus (RefMap ref a) where
-  zero = RefMap zero
-
-instance Map.Key (Ref ref a) where
-  type Map (Ref ref a) = RefMap ref a
-  insert (Ref _ k) v = RefMap . Map.insert k v . unRefMap
-  lookup (Ref _ k) = Map.lookup k . unRefMap
-
-newtype RefSet s a = RefSet { unRefSet :: Map Int (Ref s a) }
-
-instance Monoid (RefSet s a) where
-  mempty = RefSet zero
-  a `mappend` b = RefSet $ unRefSet a <!> unRefSet b
-
-instance Set.Elem (Ref s a) where
-  type Set (Ref s a) = RefSet s a
-  insert v@(Ref _ k) = RefSet . Map.insert k v . unRefSet
-  member (Ref _ k) = isJust . Map.lookup k . unRefSet
-  toList = Map.elems . unRefSet
+instance Hashable (Ref ref a) where
+  hash (Ref _ x) = hash x
+  hashWithSalt salt (Ref _ x) = hashWithSalt salt x
 
 newtype RefSupplyT m a =
   RefSupplyT { unRefSupplyT :: StateT S m a

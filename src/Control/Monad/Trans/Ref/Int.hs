@@ -20,48 +20,23 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict hiding (get, gets, modify, put)
 import qualified Control.Monad.Trans.State.Strict as State
-import Control.Monad.Unify.Map (Alt (..), Map, Plus (..))
-import qualified Control.Monad.Unify.Map as Map
-import Control.Monad.Unify.Set (Monoid (..), Set)
-import qualified Control.Monad.Unify.Set as Set
 
 import Data.Functor.Identity
-import Data.IntMap (IntMap, (!))
-import qualified Data.IntMap as IntMap
+import Data.Hashable
+import Data.HashMap.Lazy (HashMap, (!))
+import qualified Data.HashMap.Lazy as Map
 
 import GHC.Exts (Any)
 
 import Unsafe.Coerce (unsafeCoerce)
 
+type Map = HashMap
+
 newtype Ref s a = Ref { unRef :: Int } deriving (Eq, Show)
 
-newtype RefMap s a v = RefMap { unRefMap :: Map Int v }
-
-instance Functor (RefMap s a) where
-  fmap f = RefMap . fmap f . unRefMap
-
-instance Alt (RefMap s a) where
-  a <!> b = RefMap $ unRefMap a <!> unRefMap b
-
-instance Plus (RefMap s a) where
-  zero = RefMap zero
-
-instance Map.Key (Ref s a) where
-  type Map (Ref s a) = RefMap s a
-  insert k v = RefMap . Map.insert (unRef k) v . unRefMap
-  lookup k = Map.lookup (unRef k) . unRefMap
-
-newtype RefSet s a = RefSet { unRefSet :: Set Int }
-
-instance Monoid (RefSet s a) where
-  mempty = RefSet mempty
-  a `mappend` b = RefSet $ unRefSet a `mappend` unRefSet b
-
-instance Set.Elem (Ref s a) where
-  type Set (Ref s a) = RefSet s a
-  insert e = RefSet . Set.insert (unRef e) . unRefSet
-  member e = Set.member (unRef e) . unRefSet
-  toList = fmap Ref . Set.toList . unRefSet
+instance Hashable (Ref s a) where
+  hash = hash . unRef
+  hashWithSalt salt = hashWithSalt salt . unRef
 
 type RefSupply s = RefSupplyT s Identity
 
@@ -99,11 +74,11 @@ instance MonadIO m => MonadIO (RefSupplyT s m) where
 
 data S
   = S { refCount :: !Int
-      , refMap :: IntMap Any
+      , refMap :: Map Int Any
       }
 
 initS :: S
-initS = S { refCount = 0, refMap = IntMap.empty }
+initS = S { refCount = 0, refMap = Map.empty }
 
 get :: Monad m => RefSupplyT s m S
 get = RefSupplyT State.get
@@ -124,7 +99,7 @@ newRef :: Monad m => a -> RefSupplyT s m (Ref s a)
 newRef a = do
   S {..} <- get
   put S { refCount = refCount + 1
-        , refMap = IntMap.insert refCount (unsafeCoerce a) refMap
+        , refMap = Map.insert refCount (unsafeCoerce a) refMap
         }
   return $ Ref refCount
 
@@ -135,10 +110,10 @@ writeRef :: Monad m => Ref s a -> a -> RefSupplyT s m ()
 writeRef ref a = modify f
   where
     f s@S {..} =
-      s { refMap = IntMap.insert (unRef ref) (unsafeCoerce a) refMap }
+      s { refMap = Map.insert (unRef ref) (unsafeCoerce a) refMap }
 
 modifyRef :: Monad m => Ref s a -> (a -> a) -> RefSupplyT s m ()
 modifyRef ref f =
-  modify $ \ s@S {..} -> s { refMap = IntMap.adjust f' (unRef ref) refMap }
+  modify $ \ s@S {..} -> s { refMap = Map.adjust f' (unRef ref) refMap }
   where
     f' = unsafeCoerce . f . unsafeCoerce

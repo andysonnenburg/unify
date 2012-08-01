@@ -24,53 +24,21 @@ import Control.Monad.State hiding (mapM)
 
 import Data.Fix
 import Data.Foldable
+import Data.Hashable
+import qualified Data.HashMap.Lazy as Map
+import Data.HashSet (HashSet)
+import qualified Data.HashSet as Set
 import Data.Traversable
-
-import Control.Monad.Unify.Map (Alt (..), Map, Plus (..))
-import qualified Control.Monad.Unify.Map as Map
-import Control.Monad.Unify.Set (Monoid (..), Set)
-import qualified Control.Monad.Unify.Set as Set
 
 import Prelude hiding (mapM)
 
 newtype Var f ref = Var (ref (Maybe (Term f ref)))
-
 deriving instance Eq (ref (Maybe (Term f ref))) => Eq (Var f ref)
+deriving instance Show (ref (Maybe (Term f ref))) => Show (Var f ref)
 
-instance Show (ref (Maybe (Term f ref))) => Show (Var f ref) where
-  showsPrec p (Var r) = showsPrec p r
-  show (Var r) = show r
-
-newtype VarMap f ref v = VarMap { unVarMap :: Map (ref (Maybe (Term f ref))) v }
-
-instance Functor (Map (ref (Maybe (Free f (Var f ref))))) =>
-         Functor (VarMap f ref) where
-  fmap f = VarMap . fmap f . unVarMap
-
-instance Alt (Map (ref (Maybe (Free f (Var f ref))))) =>
-         Alt (VarMap f ref) where
-  a <!> b = VarMap $ unVarMap a <!> unVarMap b
-
-instance Plus (Map (ref (Maybe (Free f (Var f ref))))) =>
-         Plus (VarMap f ref) where
-  zero = VarMap zero
-
-instance Map.Key (ref (Maybe (Term f ref))) => Map.Key (Var f ref) where
-  type Map (Var f ref) = VarMap f ref
-  insert (Var r) v = VarMap . Map.insert r v . unVarMap
-  lookup (Var r) = Map.lookup r . unVarMap
-
-newtype VarSet f ref = VarSet { unVarSet :: Set (ref (Maybe (Term f ref))) }
-
-instance Monoid (Set (ref (Maybe (Term f ref)))) => Monoid (VarSet f ref) where
-  mempty = VarSet mempty
-  a `mappend` b = VarSet $ unVarSet a `mappend` unVarSet b
-
-instance Set.Elem (ref (Maybe (Term f ref))) => Set.Elem (Var f ref) where
-  type Set (Var f ref) = VarSet f ref
-  insert (Var r) = VarSet . Set.insert r . unVarSet
-  member (Var r) = Set.member r . unVarSet
-  toList = fmap Var . Set.toList . unVarSet
+instance Hashable (ref (Maybe (Term f ref))) => Hashable (Var f ref) where
+  hash (Var x) = hash x
+  hashWithSalt salt (Var x) = hashWithSalt salt x
 
 type Term f ref = Free f (Var f ref)
 
@@ -91,14 +59,14 @@ freshTerm = liftM (Pure . Var) $ newRef Nothing
 
 unify :: ( Unifiable f
          , Eq (ref (Maybe (Term f ref)))
-         , Map.Key (ref (Maybe (Term f ref)))
+         , Hashable (ref (Maybe (Term f ref)))
          , MonadError (UnificationError f ref) m
          , MonadRef ref m
          ) => Term f ref -> Term f ref -> m (Term f ref)
 unify = unify'
   where
     unify' t1 t2 =
-      evalStateT (loop t1 t2) zero
+      evalStateT (loop t1 t2) Map.empty
     loop t1 t2 =
       bindM2 (semiprune t1) (semiprune t2) loop'
     loop' (S _ (UnboundVarS r1)) (S t2 (UnboundVarS r2))
@@ -181,19 +149,20 @@ semiprune = semiprune'
           return $ S t0 (BoundVarS r0 f)
 
 freeVars :: ( Foldable f
-            , Set.Elem (ref (Maybe (Term f ref)))
+            , Eq (ref (Maybe (Term f ref)))
+            , Hashable (ref (Maybe (Term f ref)))
             , MonadRef ref m
-            ) => Term f ref -> m [Var f ref]
+            ) => Term f ref -> m (HashSet (Var f ref))
 freeVars =
-  liftM Set.toList .
-  foldlUnboundVarsM (\ a -> return . flip Set.insert a) mempty
+  foldlUnboundVarsM (\ a -> return . flip Set.insert a) Set.empty
 
 foldlUnboundVarsM :: ( Foldable f
-                     , Set.Elem (ref (Maybe (Term f ref)))
+                     , Eq (ref (Maybe (Term f ref)))
+                     , Hashable (ref (Maybe (Term f ref)))
                      , MonadRef ref m
                      ) => (a -> Var f ref -> m a) -> a -> Term f ref -> m a
 foldlUnboundVarsM k a0 =
-  flip evalStateT mempty . loop a0
+  flip evalStateT Set.empty . loop a0
   where
     loop a =
       semiprune >=> loop' a
@@ -215,12 +184,13 @@ foldlUnboundVarsM k a0 =
       if p then x else y
 
 freeze :: ( Traversable f
-          , Map.Key (ref (Maybe (Term f ref)))
+          , Eq (ref (Maybe (Term f ref)))
+          , Hashable (ref (Maybe (Term f ref)))
           , MonadError (UnificationError f ref) m
           , MonadRef ref m
           ) => Term f ref -> m (f (Fix f))
 freeze =
-  liftM getFix . flip evalStateT zero . loop
+  liftM getFix . flip evalStateT Map.empty . loop
   where
     loop =
       semiprune >=> loop'
