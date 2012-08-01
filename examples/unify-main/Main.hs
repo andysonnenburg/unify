@@ -5,7 +5,7 @@
 module Main (main) where
 
 import Control.Monad.Error.Wrap
-import qualified Control.Monad.Ref.Show as Show
+import Control.Monad.Ref.Hashable
 import Control.Monad.Unify
 
 import Data.Foldable
@@ -21,7 +21,7 @@ instance Unifiable Type where
       go _ _ = Nothing
 
 main :: IO ()
-main = Show.runRefSupplyT $
+main = runRefSupplyT $
   either (fail . show) return <=< runWrappedErrorT $ do
     a <- freshTerm
     b <- freshTerm

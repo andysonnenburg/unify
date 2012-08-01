@@ -36,7 +36,7 @@ library
     Control.Monad.Error.Wrap
     Control.Monad.Ref.Class
     Control.Monad.Ref
-    Control.Monad.Ref.Show
+    Control.Monad.Ref.Hashable
     Control.Monad.Trans.Ref.Int
     Control.Monad.Unify
     Data.Fix

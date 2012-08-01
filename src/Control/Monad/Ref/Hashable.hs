@@ -2,7 +2,7 @@
     MultiParamTypeClasses
   , TypeFamilies
   , UndecidableInstances #-}
-module Control.Monad.Ref.Show
+module Control.Monad.Ref.Hashable
        ( module Exports
        , Ref
        , RefSupplyT
@@ -17,7 +17,7 @@ import Control.Monad.Trans.State.Strict
 
 import Data.Hashable
 
-data Ref ref a = Ref !(ref a) !Int
+data Ref ref a = Ref !(ref a) !Integer
 
 instance Eq (Ref ref a) where
   Ref _ x == Ref _ y = x == y
@@ -39,7 +39,7 @@ newtype RefSupplyT m a =
 runRefSupplyT :: Monad m => RefSupplyT m a -> m a
 runRefSupplyT = flip evalStateT 0 . unRefSupplyT
 
-type S = Int
+type S = Integer
 
 instance Monad m => Monad (RefSupplyT m) where
   return = RefSupplyT . return
