@@ -40,8 +40,6 @@ library
     Control.Monad.Trans.Ref.Int
     Control.Monad.Unify
     Data.Fix
-  other-modules:
-    Control.Monad.Unify.Base
   ghc-options: -Wall -Werror
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
