@@ -14,7 +14,7 @@ import Control.Monad.Unify
 import Data.Foldable
 import Data.Traversable
 
-import Prelude hiding ((==))
+import Prelude hiding ((==), (&&), (||))
 
 data Dest f
   = Chicago
@@ -37,18 +37,22 @@ main =
   reach (wrap LosAngeles) (wrap NewYork)
   where
     reach x y =
-      x == y <|> do
-        z <- freshTerm
-        flight x z *> reach z y
-    flight x y =
-      x == wrap Chicago *> y == wrap NewYork <|>
-      x == wrap LosAngeles *> y == wrap Chicago
+      x == y || forSome (\ z -> flight x z && reach z y)
+    flight x y = 
+      x == wrap Chicago && y == wrap NewYork ||
+      x == wrap LosAngeles && y == wrap Chicago
+    forSome = (freshTerm >>=)
+    (&&) = (*>)
+    infixr 3 &&
+    (||) = (<|>)
+    infixr 2 ||
     (==) a =
       liftM (const ()) <<<
       lift . either throwError return <=<
       liftM (mapLeft (fmap (const ()))) <<<
       runWrappedErrorT <<<
       unify a
+    infix 4 ==
     mapLeft f (Left a) = Left (f a)
     mapLeft _ (Right b) = Right b
     
