@@ -2,7 +2,6 @@
     DeriveFunctor
   , DeriveFoldable
   , DeriveTraversable #-}
-{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Main (main) where
 
 import Control.Applicative
@@ -12,6 +11,7 @@ import Control.Monad.Ref.Hashable
 import Control.Monad.Unify
 
 import Data.Foldable
+import Data.Function
 import Data.Traversable
 
 import Prelude hiding ((==), (&&), (||))
@@ -19,7 +19,7 @@ import Prelude hiding ((==), (&&), (||))
 data Dest f
   = Chicago
   | NewYork
-  | LosAngeles deriving (Show, Functor, Foldable, Traversable)
+  | LosAngeles deriving (Read, Show, Functor, Foldable, Traversable)
 
 instance Unifiable Dest where
   zipMatch = go
@@ -34,7 +34,10 @@ main =
   print <=<
   runWrappedErrorT <<<
   runRefSupplyT $
-  reach (wrap LosAngeles) (wrap NewYork)
+  uncurry reach =<<
+  ((,) `on` wrap . read) <$>
+  liftIO getLine <*>
+  liftIO getLine
   where
     reach x y =
       x == y || forSome (\ z -> flight x z && reach z y)
@@ -48,11 +51,8 @@ main =
     infixr 2 ||
     (==) a =
       liftM (const ()) <<<
-      lift . either throwError return <=<
-      liftM (mapLeft (fmap (const ()))) <<<
+      lift . either (const (throwError ())) return <=<
       runWrappedErrorT <<<
       unify a
     infix 4 ==
-    mapLeft f (Left a) = Left (f a)
-    mapLeft _ (Right b) = Right b
     
