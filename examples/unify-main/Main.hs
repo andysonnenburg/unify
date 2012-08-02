@@ -5,6 +5,8 @@
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Main (main) where
 
+import Control.Applicative
+import Control.Category ((<<<))
 import Control.Monad.Error.Wrap
 import Control.Monad.Ref.Hashable
 import Control.Monad.Unify
@@ -12,30 +14,41 @@ import Control.Monad.Unify
 import Data.Foldable
 import Data.Traversable
 
-data Type f = Var Int | f :-> f deriving (Show, Functor, Foldable, Traversable)
+import Prelude hiding ((==))
 
-instance Unifiable Type where
+data Dest f
+  = Chicago
+  | NewYork
+  | LosAngeles deriving (Show, Functor, Foldable, Traversable)
+
+instance Unifiable Dest where
   zipMatch = go
     where
-      go (Var a) (Var b) | a == b = Just (Var a)
-      go (a :-> b) (a' :-> b') = Just ((a, a') :-> (b, b'))
+      go Chicago Chicago = Just Chicago
+      go NewYork NewYork = Just NewYork
+      go LosAngeles LosAngeles = Just LosAngeles
       go _ _ = Nothing
 
 main :: IO ()
-main = runRefSupplyT $
-  either (fail . show) return <=< runWrappedErrorT $ do
-    a <- freshTerm
-    b <- freshTerm
-    c <- freshTerm
-    c <- unify c (wrap $ a :-> b)
-    liftIO . print =<< freeVars c
-    a <- unify a b
-    liftIO . print =<< freeVars c
-    a <- unify a (wrap $ Var 0)
-    liftIO . print =<< freeze a
-    liftIO . print =<< freeze b
-    liftIO . print =<< freeze c
-    d <- freshTerm
-    d <- unify d (wrap $ d :-> d)
-    liftIO . print =<< freeVars d
-    liftIO . print =<< freeze d
+main =
+  print <=<
+  runWrappedErrorT <<<
+  runRefSupplyT $
+  reach (wrap LosAngeles) (wrap NewYork)
+  where
+    reach x y =
+      x == y <|> do
+        z <- freshTerm
+        flight x z *> reach z y
+    flight x y =
+      x == wrap Chicago *> y == wrap NewYork <|>
+      x == wrap LosAngeles *> y == wrap Chicago
+    (==) a =
+      liftM (const ()) <<<
+      lift . either throwError return <=<
+      liftM (mapLeft (fmap (const ()))) <<<
+      runWrappedErrorT <<<
+      unify a
+    mapLeft f (Left a) = Left (f a)
+    mapLeft _ (Right b) = Right b
+    

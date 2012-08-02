@@ -9,6 +9,7 @@ module Control.Monad.Ref.Hashable
        , runRefSupplyT
        ) where
 
+import Control.Applicative
 import Control.Monad as Exports
 import Control.Monad.Fix as Exports
 import Control.Monad.Ref.Class
@@ -41,11 +42,32 @@ runRefSupplyT = flip evalStateT 0 . unRefSupplyT
 
 type S = Integer
 
+instance Functor m => Functor (RefSupplyT m) where
+  fmap f = RefSupplyT . fmap f . unRefSupplyT
+  a <$ m = RefSupplyT $ a <$ unRefSupplyT m
+
+instance (Functor m, Monad m) => Applicative (RefSupplyT m) where
+  pure = RefSupplyT . pure
+  f <*> a = RefSupplyT $ unRefSupplyT f <*> unRefSupplyT a
+  a *> b = RefSupplyT $ unRefSupplyT a *> unRefSupplyT b
+  a <* b = RefSupplyT $ unRefSupplyT a <* unRefSupplyT b
+
+instance (Functor m, MonadPlus m) => Alternative (RefSupplyT m) where
+  empty = mzero
+  (<|>) = mplus
+
 instance Monad m => Monad (RefSupplyT m) where
   return = RefSupplyT . return
   m >>= k = RefSupplyT $ unRefSupplyT m >>= unRefSupplyT . k
   m >> n = RefSupplyT $ unRefSupplyT m >> unRefSupplyT n
   fail = RefSupplyT . fail
+
+instance MonadPlus m => MonadPlus (RefSupplyT m) where
+  mzero = RefSupplyT mzero
+  m `mplus` n = RefSupplyT $ unRefSupplyT m `mplus` unRefSupplyT n
+
+instance MonadFix m => MonadFix (RefSupplyT m) where
+  mfix = RefSupplyT . mfix . (unRefSupplyT .)
 
 instance MonadTrans RefSupplyT where
   lift = RefSupplyT . lift

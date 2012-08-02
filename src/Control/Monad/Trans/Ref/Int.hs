@@ -15,6 +15,7 @@ module Control.Monad.Trans.Ref.Int
        ) where
 
 import Control.Applicative
+import Control.Monad
 import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
@@ -57,11 +58,19 @@ instance (Functor m, Monad m) => Applicative (RefSupplyT s m) where
   a *> b = RefSupplyT $ unRefSupplyT a *> unRefSupplyT b
   a <* b = RefSupplyT $ unRefSupplyT a <* unRefSupplyT b
 
+instance (Functor m, MonadPlus m) => Alternative (RefSupplyT s m) where
+  empty = mzero
+  (<|>) = mplus
+
 instance Monad m => Monad (RefSupplyT s m) where
   return = RefSupplyT . return
   m >>= k = RefSupplyT $ unRefSupplyT m >>= unRefSupplyT . k
   m >> n = RefSupplyT $ unRefSupplyT m >> unRefSupplyT n
   fail = RefSupplyT . fail
+
+instance MonadPlus m => MonadPlus (RefSupplyT s m) where
+  mzero = RefSupplyT mzero
+  m `mplus` n = RefSupplyT $ unRefSupplyT m `mplus` unRefSupplyT n
 
 instance MonadFix m => MonadFix (RefSupplyT s m) where
   mfix = RefSupplyT . mfix . (unRefSupplyT .)

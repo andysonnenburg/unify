@@ -9,6 +9,7 @@ module Control.Monad.Error.Wrap
        , runWrappedErrorT
        ) where
 
+import Control.Applicative
 import Control.Monad.Error as Exports
 import Control.Monad.Ref.Class
 
@@ -16,6 +17,11 @@ data WrappedError e
   = NoMsg
   | StrMsg String
   | Error !e deriving Show
+
+instance Functor WrappedError where
+  fmap _ NoMsg = NoMsg
+  fmap _ (StrMsg s) = StrMsg s
+  fmap f (Error e) = Error (f e)
 
 instance Error (WrappedError e) where
   noMsg = NoMsg
@@ -28,11 +34,26 @@ newtype WrappedErrorT e m a
 runWrappedErrorT :: WrappedErrorT e m a -> m (Either (WrappedError e) a)
 runWrappedErrorT = runErrorT . unwrapErrorT
 
+instance Functor m => Functor (WrappedErrorT e m) where
+  fmap f = WrapErrorT . fmap f . unwrapErrorT
+
+instance (Functor m, Monad m) => Applicative (WrappedErrorT e m) where
+  pure = WrapErrorT . return
+  f <*> v = WrapErrorT $ unwrapErrorT f <*> unwrapErrorT v
+
+instance (Functor m, Monad m) => Alternative (WrappedErrorT e m) where
+  empty = mzero
+  (<|>) = mplus
+
 instance Monad m => Monad (WrappedErrorT e m) where
   return = WrapErrorT . return
   m >>= k = WrapErrorT $ unwrapErrorT m >>= unwrapErrorT . k
   m >> n = WrapErrorT $ unwrapErrorT m >> unwrapErrorT n
   fail = WrapErrorT . fail
+
+instance Monad m => MonadPlus (WrappedErrorT e m) where
+  mzero = WrapErrorT mzero
+  m `mplus` n = WrapErrorT $ unwrapErrorT m `mplus` unwrapErrorT n
 
 instance Monad m => MonadError e (WrappedErrorT e m) where
   throwError = WrapErrorT . throwError . Error
