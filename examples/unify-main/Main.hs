@@ -14,6 +14,8 @@ import Data.Foldable
 import Data.Function
 import Data.Traversable
 
+import System.Exit
+
 import Prelude hiding ((==), (&&), (||))
 
 data Dest f
@@ -31,7 +33,7 @@ instance Unifiable Dest where
 
 main :: IO ()
 main =
-  print <=<
+  either (const exitFailure) (const exitSuccess) <=<
   runWrappedErrorT <<<
   runRefSupplyT $
   uncurry reach =<<
