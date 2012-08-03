@@ -33,14 +33,16 @@ library
     unordered-containers >= 0.2.1.0,
     free
   exposed-modules:
+    Control.Monad.Disj
     Control.Monad.Error.Wrap
     Control.Monad.Ref.Class
     Control.Monad.Ref
     Control.Monad.Ref.Hashable
+    Control.Monad.Trans.Disj
     Control.Monad.Trans.Ref.Int
     Control.Monad.Unify
     Data.Fix
-  ghc-options: -Wall -Werror
+  ghc-options: -Wall
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
   -- Build-tools:         
 

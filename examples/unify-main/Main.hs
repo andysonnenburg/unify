@@ -1,13 +1,18 @@
 {-# LANGUAGE
     DeriveFunctor
   , DeriveFoldable
-  , DeriveTraversable #-}
+  , DeriveTraversable
+  , FlexibleInstances
+  , MultiParamTypeClasses
+  , NoMonomorphismRestriction
+  , UndecidableInstances #-}
 module Main (main) where
 
 import Control.Applicative
 import Control.Category ((<<<))
+import Control.Monad.Disj
 import Control.Monad.Error.Wrap
-import Control.Monad.Ref.Hashable
+import Control.Monad.Ref
 import Control.Monad.Unify
 
 import Data.Foldable
@@ -35,26 +40,31 @@ main :: IO ()
 main =
   either (const exitFailure) (const exitSuccess) <=<
   runWrappedErrorT <<<
-  runRefSupplyT $
-  uncurry reach =<<
-  ((,) `on` wrap . read) <$>
-  liftIO getLine <*>
-  liftIO getLine
-  where
-    reach x y =
-      x == y || forSome (\ z -> flight x z && reach z y)
-    flight x y = 
-      x == wrap Chicago && y == wrap NewYork ||
-      x == wrap LosAngeles && y == wrap Chicago
-    forSome = (freshTerm >>=)
-    (&&) = (*>)
-    infixr 3 &&
-    (||) = (<|>)
-    infixr 2 ||
-    (==) a =
-      liftM (const ()) <<<
-      lift . either (const (throwError ())) return <=<
-      runWrappedErrorT <<<
-      unify a
-    infix 4 ==
-    
+  runDisjT $
+  runRefSupplyT
+  (uncurry reach =<<
+   ((,) `on` wrap . read) <$>
+   liftIO getLine <*>
+   liftIO getLine)
+
+reach x y =
+  x == y || forSome (\ z -> flight x z && reach z y)
+
+flight x y = 
+  x == wrap Chicago && y == wrap NewYork ||
+  x == wrap LosAngeles && y == wrap Chicago ||
+  x == wrap Chicago && y == wrap LosAngeles
+
+forSome = (freshTerm >>=)
+
+(&&) = (*>)
+infixr 3 &&
+
+(||) = (<|>)
+infixr 2 ||
+
+(==) a =
+  lift . either (const (throwError ())) (const (return ())) <=<
+  runWrappedErrorT <<<
+  unify a
+infix 4 ==
