@@ -61,9 +61,9 @@ type MonadUnify f ref m = ( Unifiable f
                           , Hashable (ref (Maybe (Term f ref)))
                           , MonadError (UnificationError f ref) m
                           , MonadRef ref m
-                          )
+                          ) -- ^
 
-unify :: MonadUnify f ref m => Term f ref -> Term f ref -> m (Term f ref)
+unify :: MonadUnify f ref m => Term f ref -> Term f ref -> m (Term f ref) -- ^
 unify = unify'
   where
     unify' t1 t2 =
@@ -156,7 +156,7 @@ getFreeVars :: ( Foldable f
                , Eq (ref (Maybe (Term f ref)))
                , Hashable (ref (Maybe (Term f ref)))
                , MonadRef ref m
-               ) => Term f ref -> m (HashSet (Var f ref))
+               ) => Term f ref -> m (HashSet (Var f ref)) -- ^
 getFreeVars =
   foldlUnboundVarsM (\ a -> return . flip Set.insert a) Set.empty
 
@@ -192,7 +192,7 @@ freeze :: ( Traversable f
           , Hashable (ref (Maybe (Term f ref)))
           , MonadError (UnificationError f ref) m
           , MonadRef ref m
-          ) => Term f ref -> m (f (Fix f))
+          ) => Term f ref -> m (f (Fix f)) -- ^
 freeze =
   liftM getFix . flip evalStateT Map.empty . loop
   where
