@@ -33,11 +33,11 @@ typeCheck =
     loop (E.App e1 e2) = do
       f <- loop . getFix $ e1
       a <- loop . getFix $ e2
-      b <- freshTerm
+      b <- liftM pure newFreeVar
       _ <- unify f . wrap $ T.Fn a b
       return b
     loop (E.Abs x e) = do
-      a <- freshTerm
+      a <- liftM pure newFreeVar
       b <- local (Map.insert x a) . loop . getFix $ e
       return . wrap $ Fn a b
     loop (E.Let x e e') = do
@@ -50,15 +50,15 @@ generalize :: ( MonadUnify (Type Int) ref m
               , MonadState Int m
               ) => Term (Type Int) ref -> m (Term (Type Int) ref)
 generalize t = do
-  fvs <- freeVars t
-  forM_ fvs $ \ fv -> do
-    tv <- freshVar
-    _ <- unify (pure fv) (wrap $ T.Var tv)
+  freeVars <- getFreeVars t
+  forM_ freeVars $ \ freeVar -> do
+    typeVar <- newTypeVar
+    _ <- unify (pure freeVar) (wrap $ T.Var typeVar)
     return ()
   return t
 
-freshVar :: MonadState Int m => m Int
-freshVar = do
+newTypeVar :: MonadState Int m => m Int
+newTypeVar = do
   s <- get
   put $! s + 1
   return s

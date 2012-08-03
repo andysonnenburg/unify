@@ -11,9 +11,9 @@ module Control.Monad.Unify
        , Unifiable (..)
        , UnificationError (..)
        , MonadUnify
-       , freshTerm
        , unify
-       , freeVars
+       , newFreeVar
+       , getFreeVars
        , freeze
        , unfreeze
        ) where
@@ -55,9 +55,6 @@ deriving instance ( Show (f (Term f ref))
 
 class Traversable f => Unifiable f where
   zipMatch :: f a -> f b -> Maybe (f (a, b))
-
-freshTerm :: MonadRef ref m => m (Term f ref)
-freshTerm = liftM (Pure . Var) $ newRef Nothing
 
 type MonadUnify f ref m = ( Unifiable f
                           , Eq (ref (Maybe (Term f ref)))
@@ -152,12 +149,15 @@ semiprune = semiprune'
         loop' (Just (Free f)) =
           return $ S t0 (BoundVarS r0 f)
 
-freeVars :: ( Foldable f
-            , Eq (ref (Maybe (Term f ref)))
-            , Hashable (ref (Maybe (Term f ref)))
-            , MonadRef ref m
-            ) => Term f ref -> m (HashSet (Var f ref))
-freeVars =
+newFreeVar :: MonadRef ref m => m (Var f ref)
+newFreeVar = liftM Var $ newRef Nothing
+
+getFreeVars :: ( Foldable f
+               , Eq (ref (Maybe (Term f ref)))
+               , Hashable (ref (Maybe (Term f ref)))
+               , MonadRef ref m
+               ) => Term f ref -> m (HashSet (Var f ref))
+getFreeVars =
   foldlUnboundVarsM (\ a -> return . flip Set.insert a) Set.empty
 
 foldlUnboundVarsM :: ( Foldable f

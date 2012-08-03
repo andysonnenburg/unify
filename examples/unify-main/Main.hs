@@ -56,7 +56,8 @@ flight x y =
   x == wrap LosAngeles && y == wrap Chicago ||
   x == wrap Chicago && y == wrap LosAngeles
 
-forSome = (freshTerm >>=)
+forSome k =
+  newFreeVar >>= k . pure
 
 (&&) = (*>)
 infixr 3 &&
