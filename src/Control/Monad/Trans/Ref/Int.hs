@@ -2,6 +2,7 @@
     Rank2Types
   , RecordWildCards
   , TypeFamilies #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Control.Monad.Trans.Ref.Int
        ( Ref
        , RefSupply
@@ -12,6 +13,7 @@ module Control.Monad.Trans.Ref.Int
        , readRef
        , writeRef
        , modifyRef
+       , liftCatch
        ) where
 
 import Control.Applicative
@@ -19,7 +21,7 @@ import Control.Monad
 import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
-import Control.Monad.Trans.State.Strict hiding (get, gets, modify, put)
+import Control.Monad.Trans.State.Strict (StateT (..), evalStateT)
 import qualified Control.Monad.Trans.State.Strict as State
 
 import Data.Functor.Identity
@@ -126,3 +128,10 @@ modifyRef ref f =
   modify $ \ s@S {..} -> s { refMap = Map.adjust f' (unRef ref) refMap }
   where
     f' = unsafeCoerce . f . unsafeCoerce
+
+liftCatch :: (forall a . m a -> (e -> m a) -> m a) ->
+             RefSupplyT s m a ->
+             (e -> RefSupplyT s m a) ->
+             RefSupplyT s m a
+liftCatch catchError m h =
+  RefSupplyT $ State.liftCatch catchError (unRefSupplyT m) (unRefSupplyT . h)

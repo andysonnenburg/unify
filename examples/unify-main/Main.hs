@@ -65,7 +65,7 @@ infixr 3 &&
 infixr 2 ||
 
 (==) a =
-  lift . either (const (throwError ())) (const (return ())) <=<
+  either (const (throwError ())) (const (return ())) <=<
   runWrappedErrorT <<<
   unify a
 infix 4 ==
