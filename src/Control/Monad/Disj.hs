@@ -14,5 +14,7 @@ import Control.Monad.Trans as Exports
 import Control.Monad.Trans.Disj as Exports
 
 instance (MonadPlus m, MonadError e m) => MonadError e (DisjT m) where
-  throwError = lift . throwError
-  m `catchError` h = lift $ runDisjT m `catchError` (runDisjT . h)
+  throwError =
+    lift . throwError
+  m `catchError` h =
+    lift $ runDisjT m mplus `catchError` (flip runDisjT mplus . h)

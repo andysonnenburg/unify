@@ -19,19 +19,19 @@ instance Functor m => Functor (DisjT m) where
       go (Lift m) = Lift $ fmap f m
       go (Plus m n) = fmap f m `Plus` fmap f n
 
-instance (Functor m, MonadPlus m) => Applicative (DisjT m) where
-  pure = return
-  (<*>) = ap
+instance (Alternative m) => Applicative (DisjT m) where
+  pure = Lift . pure
+  f <*> a = Lift $ runDisjT f (<|>) <*> runDisjT a (<|>)
 
-instance (Functor m, MonadPlus m) => Alternative (DisjT m) where
-  empty = mzero
-  (<|>) = mplus
+instance Alternative m => Alternative (DisjT m) where
+  empty = Lift empty
+  (<|>) = Plus
 
 instance MonadPlus m => Monad (DisjT m) where
   return = lift . return
-  (Lift m) >>= k = Lift $ m >>= runDisjT . k
+  (Lift m) >>= k = Lift $ m >>= flip runDisjT mplus . k
   (Plus m n) >>= k = Plus (m >>= k) (n >>= k)
-  (Lift m) >> n = Lift $ m >> runDisjT n
+  (Lift m) >> n = Lift $ m >> runDisjT n mplus
   (Plus m n) >> o = Plus (m >> o) (n >> o)
   fail = lift . fail
 
@@ -40,7 +40,7 @@ instance MonadPlus m => MonadPlus (DisjT m) where
   mplus = Plus
 
 instance (MonadPlus m, MonadFix m) => MonadFix (DisjT m) where
-  mfix = lift . mfix . (runDisjT .)
+  mfix = lift . mfix . (flip runDisjT mplus .)
 
 instance MonadTrans DisjT where
   lift = Lift
@@ -48,8 +48,8 @@ instance MonadTrans DisjT where
 instance (MonadPlus m, MonadIO m) => MonadIO (DisjT m) where
   liftIO = lift . liftIO
 
-runDisjT :: MonadPlus m => DisjT m a -> m a
-runDisjT = go
+runDisjT :: DisjT m a -> (m a -> m a -> m a) -> m a
+runDisjT t plus = go t
   where
     go (Lift m) = m
-    go (Plus m n) = runDisjT m `mplus` runDisjT n
+    go (Plus m n) = go m `plus` go n

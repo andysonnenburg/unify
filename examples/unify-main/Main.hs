@@ -6,6 +6,7 @@
   , MultiParamTypeClasses
   , NoMonomorphismRestriction
   , UndecidableInstances #-}
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 module Main (main) where
 
 import Control.Applicative
@@ -40,7 +41,7 @@ main :: IO ()
 main =
   either (const exitFailure) (const exitSuccess) <=<
   runWrappedErrorT <<<
-  runDisjT $
+  flip runDisjT (<|>) $
   runRefSupplyT
   (uncurry reach =<<
    ((,) `on` wrap . read) <$>
@@ -50,7 +51,7 @@ main =
 reach x y =
   x == y || forSome (\ z -> flight x z && reach z y)
 
-flight x y = 
+flight x y =
   x == wrap Chicago && y == wrap NewYork ||
   x == wrap LosAngeles && y == wrap Chicago ||
   x == wrap Chicago && y == wrap LosAngeles
