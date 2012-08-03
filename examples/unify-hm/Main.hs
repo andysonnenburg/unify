@@ -7,8 +7,8 @@ import Control.Monad.Ref.Hashable
 
 import Data.Fix
 
-import Language.HM.Syntax
-import Language.HM.TypeCheck
+import Language.HM.Exp
+import qualified Language.HM.DM.TypeCheck as DM
 
 main :: IO ()
 main =
@@ -16,6 +16,5 @@ main =
   runRefSupplyT <<<
   either (fail . show) return <=<
   runWrappedErrorT <<<
-  typeCheck $
-  Let 1 (Fix (Abs 0 (Fix (Var 0))))
-  (Fix (Let 2 (Fix (App (Fix (Var 1)) (Fix (Bool True)))) (Fix (Var 1))))
+  DM.typeCheck $
+  Abs 0 (Fix (Var 0))
