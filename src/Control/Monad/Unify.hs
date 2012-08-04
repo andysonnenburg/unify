@@ -4,6 +4,9 @@
   , StandaloneDeriving
   , TypeFamilies
   , UndecidableInstances #-}
+{-# OPTIONS_GHC
+    -fno-warn-missing-signatures
+    -fno-warn-name-shadowing #-}
 module Control.Monad.Unify
        ( module Exports
        , Var
@@ -14,6 +17,8 @@ module Control.Monad.Unify
        , unify
        , newFreeVar
        , getFreeVars
+       , getAllFreeVars
+       , rewrite
        , freeze
        , unfreeze
        ) where
@@ -26,10 +31,12 @@ import Control.Monad.State hiding (mapM)
 
 import Data.Fix
 import Data.Foldable
+import Data.Functor.Identity
 import Data.Hashable
 import qualified Data.HashMap.Lazy as Map
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as Set
+import Data.Maybe (fromMaybe)
 import Data.Traversable
 
 import Prelude hiding (mapM)
@@ -115,12 +122,12 @@ unify = unify'
       (throwError $ TermMismatch x y)
       (liftM Free . mapM (uncurry loop)) $
       zipMatch x y
-    r0 `seenAs` f0 = do
+    r `seenAs` f = do
       s <- get
       maybe
-        (put $! Map.insert r0 f0 s)
-        (\ f -> throwError $ Var r0 `OccursIn` f) $
-        Map.lookup r0 s
+        (put $! Map.insert r f s)
+        (\ f' -> throwError $ Var r `OccursIn` f') $
+        Map.lookup r s
 
 data TermS f ref
   = S !(Term f ref) !(Semipruned f ref)
@@ -158,15 +165,26 @@ getFreeVars :: ( Foldable f
                , MonadRef ref m
                ) => Term f ref -> m (HashSet (Var f ref)) -- ^
 getFreeVars =
+  getAllFreeVars . Identity
+
+getAllFreeVars :: ( Foldable c
+                  , Foldable f
+                  , Eq (ref (Maybe (Term f ref)))
+                  , Hashable (ref (Maybe (Term f ref)))
+                  , MonadRef ref m
+                  ) => c (Term f ref) -> m (HashSet (Var f ref)) -- ^
+getAllFreeVars =
   foldlUnboundVarsM (\ a -> return . flip Set.insert a) Set.empty
 
-foldlUnboundVarsM :: ( Foldable f
+foldlUnboundVarsM :: ( Foldable c
+                     , Foldable f
                      , Eq (ref (Maybe (Term f ref)))
                      , Hashable (ref (Maybe (Term f ref)))
                      , MonadRef ref m
-                     ) => (a -> Var f ref -> m a) -> a -> Term f ref -> m a
+                     ) => (a -> Var f ref -> m a) -> a -> c (Term f ref) -> m a
 foldlUnboundVarsM k a0 =
-  flip evalStateT Set.empty . loop a0
+  flip evalStateT Set.empty .
+  foldlM loop a0
   where
     loop a =
       semiprune >=> loop' a
@@ -186,6 +204,30 @@ foldlUnboundVarsM k a0 =
     ifM m x y = do
       p <- m
       if p then x else y
+
+rewrite :: MonadUnify f ref m =>
+           (Term f ref -> Maybe (Term f ref)) ->
+           Term f ref -> m (Term f ref) -- ^
+rewrite f =
+  flip evalStateT Map.empty . loop
+  where
+    loop =
+      semiprune >=> loop'
+    loop' (S t (UnboundVarS r)) =
+      whenUnseen r $ do
+        let t' = g t
+        r `seenAs` t'
+        return t'
+    loop' (S _ (BoundVarS r f)) =
+      whenUnseen r $ do
+        r `mustNotOccurIn` f
+        t' <- liftM (g . wrap) $ mapM loop f
+        r `seenAs` t'
+        return t'
+    loop' (S _ (TermS f)) =
+      liftM (g . wrap) $ mapM loop f
+    g t =
+      fromMaybe t $ f t
 
 freeze :: ( Traversable f
           , Eq (ref (Maybe (Term f ref)))
@@ -208,16 +250,19 @@ freeze =
         return f'
     loop' (S _ (TermS f)) =
       liftM Fix . mapM loop $ f
-    whenUnseen r m = do
-      s <- get
-      case Map.lookup r s of
-        Nothing -> m
-        Just (Left f) -> throwError $ Var r `OccursIn` f
-        Just (Right f) -> return f
-    r `mustNotOccurIn` f =
-      modify $ Map.insert r (Left f)
-    r `seenAs` f =
-      modify $ Map.insert r (Right f)
+
+whenUnseen r m = do
+  s <- get
+  case Map.lookup r s of
+    Nothing -> m
+    Just (Left f) -> throwError $ Var r `OccursIn` f
+    Just (Right f) -> return f
+
+r `mustNotOccurIn` f =
+  modify $ Map.insert r (Left f)
+
+r `seenAs` f =
+  modify $ Map.insert r (Right f)
 
 unfreeze :: Functor f => f (Fix f) -> Term f ref
 unfreeze = Free . fmap (unfreeze . getFix)

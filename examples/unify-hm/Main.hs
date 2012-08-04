@@ -17,4 +17,4 @@ main =
   either (fail . show) return <=<
   runWrappedErrorT <<<
   DM.typeCheck $
-  Abs 0 (Fix (Var 0))
+  Let "id" (Fix (Abs "x" (Fix (Var "x")))) (Fix (Var "id"))

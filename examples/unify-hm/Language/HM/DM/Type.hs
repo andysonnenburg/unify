@@ -14,7 +14,7 @@ import Data.Foldable
 import Data.HashSet (HashSet)
 import Data.Traversable
 
-data Poly a f = Forall (HashSet a) f deriving Show
+data Poly a f = Forall (HashSet a) f deriving (Show, Functor)
 
 type Rho = Mono
 
