@@ -10,4 +10,3 @@ data Exp t a f
   | App f f
   | Let a f f
   | Annot f t deriving Show
-

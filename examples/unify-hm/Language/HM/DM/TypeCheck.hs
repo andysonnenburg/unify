@@ -31,7 +31,9 @@ typeCheck :: ( Eq a
              , Hashable a
              , Show (ref (Maybe (Term (Mono Int) ref)))
              , MonadUnify (Mono Int) ref m
-             ) => Exp a (Fix (Exp a)) -> m (Poly Int (Mono Int (Fix (Mono Int))))
+             ) =>
+             Exp a (Fix (Exp a)) ->
+             m (Poly Int (Mono Int (Fix (Mono Int))))
 typeCheck =
   flip evalStateT 0 <<<
   flip runReaderT Map.empty <<<
@@ -60,20 +62,21 @@ typeCheck =
       sigma' <- poly $ getFix t
       sh sigma' sigma
       inst sigma
-      
+
     poly t = do
       rho <- loop t
       gamma <- asks $ fmap getMono
-      a <- (mapM $
-            \ freeVar -> do
-              a <- newTypeVar
-              _ <- unify (pure freeVar) (wrap $ T.Var a)
-              return a) =<<
+      a <- freeze' =<<
            Set.difference `liftM`
            getFreeVars rho `ap`
            getAllFreeVars gamma
       return $ T.Forall a rho
       where
+        freeze' =
+          mapM $ \ freeVar -> do
+            a <- newTypeVar
+            _ <- unify (pure freeVar) (wrap $ T.Var a)
+            return a
         mapM f =
           foldlM (\ a -> liftM (flip Set.insert a) . f) Set.empty
 
@@ -109,10 +112,10 @@ typeCheck =
       local $ Map.insert x (T.Forall Set.empty tau)
 
     getMono (T.Forall _ rho) = rho
-      
+
     freezePoly (T.Forall a rho) =
       liftM (T.Forall a) $ freeze rho
-      
+
     newTypeVar = do
       s <- get
       put $! s + 1
