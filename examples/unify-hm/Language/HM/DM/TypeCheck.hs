@@ -8,8 +8,8 @@ module Language.HM.DM.TypeCheck
 
 import Control.Applicative
 import Control.Category ((<<<))
-import Control.Monad.Reader hiding (forM_)
-import Control.Monad.State hiding (forM_)
+import Control.Monad.Reader hiding (forM_, mapM)
+import Control.Monad.State hiding (forM_, mapM)
 import Control.Monad.Unify
 
 import Data.Fix
@@ -23,6 +23,8 @@ import Language.HM.DM.Type (Mono, Poly)
 import qualified Language.HM.DM.Type as T
 import qualified Language.HM.Exp as E
 
+import Prelude hiding (mapM)
+
 type Exp = E.Exp (Poly Int (Mono Int (Fix (Mono Int))))
 
 typeCheck :: ( Eq a
@@ -34,15 +36,13 @@ typeCheck =
   flip evalStateT 0 <<<
   flip runReaderT Map.empty <<<
   freezePoly <=<
-  poly <=<
-  loop
+  poly
   where
     loop (E.Lit _) =
-      return $ wrap $ T.Int
+      return $ wrap T.Int
     loop (E.Var x) = do
       sigma <- lookupPoly x
-      rho <- inst sigma
-      return rho
+      inst sigma
     loop (E.Abs x t) = do
       tau <- liftM pure newFreeVar
       rho <- insertMono x tau $ loop $ getFix t
@@ -54,28 +54,39 @@ typeCheck =
       _ <- unify tau' (wrap $ T.Fn tau rho)
       return rho
     loop (E.Let x u t) = do
-      sigma <- poly <=< loop <<< getFix $ u
+      sigma <- poly $ getFix u
       insertPoly x sigma $ loop $ getFix t
     loop (E.Annot t (fmap unfreeze -> sigma)) = do
-      sigma' <- poly <=< loop <<< getFix $ t
+      sigma' <- poly $ getFix t
       sh sigma' sigma
       inst sigma
       
-    poly rho = do
+    poly t = do
+      rho <- loop t
       gamma <- asks $ fmap getMono
-      a <- foldlM
-           (\ as freeVar -> do
-               a <- newTypeVar
-               _ <- unify (pure freeVar) (wrap $ T.Var a)
-               return $ Set.insert a as)
-           Set.empty =<<
+      a <- (mapM $
+            \ freeVar -> do
+              a <- newTypeVar
+              _ <- unify (pure freeVar) (wrap $ T.Var a)
+              return a) =<<
            Set.difference `liftM`
            getFreeVars rho `ap`
            getAllFreeVars gamma
       return $ T.Forall a rho
+      where
+        mapM f =
+          foldlM (\ a -> liftM (flip Set.insert a) . f) Set.empty
 
-    sh sigma sigma' =
-      skol sigma sigma'
+    inst (T.Forall as rho) = do
+      taus <- foldlM (\ taus a -> do
+        tau <- liftM pure newFreeVar
+        return $ Map.insert a tau taus) Map.empty as
+      flip rewrite rho $ \ f ->
+        case f of
+          Free (T.Var a) -> Map.lookup a taus
+          _ -> Nothing
+
+    sh = skol
 
     skol sigma (T.Forall _a rho) =
       spec sigma rho
@@ -87,15 +98,6 @@ typeCheck =
     mono tau tau' = do
       _ <- unify tau tau'
       return ()
-      
-    inst (T.Forall as rho) = do
-      taus <- foldlM (\ taus a -> do
-        tau <- liftM pure newFreeVar
-        return $ Map.insert a tau taus) Map.empty as
-      flip rewrite rho $ \ f ->
-        case f of
-          Free (T.Var a) -> Map.lookup a taus
-          _ -> Nothing
 
     lookupPoly x =
       asks (!x)
