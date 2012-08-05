@@ -62,18 +62,17 @@ typeCheck =
       inst sigma
       
     poly rho = do
-      gamma <- ask
-      freeVars <- Set.difference `liftM`
-                  getFreeVars rho `ap`
-                  getAllFreeVars (getMono <$> gamma)
-      as <- foldlM
-            (\ as freeVar -> do
-                a <- newTypeVar
-                _ <- unify (pure freeVar) (wrap $ T.Var a)
-                return $ Set.insert a as)
-            Set.empty
-            freeVars
-      return $ T.Forall as rho
+      gamma <- asks $ fmap getMono
+      a <- foldlM
+           (\ as freeVar -> do
+               a <- newTypeVar
+               _ <- unify (pure freeVar) (wrap $ T.Var a)
+               return $ Set.insert a as)
+           Set.empty =<<
+           Set.difference `liftM`
+           getFreeVars rho `ap`
+           getAllFreeVars gamma
+      return $ T.Forall a rho
 
     sh sigma sigma' =
       skol sigma sigma'
