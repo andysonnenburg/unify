@@ -66,13 +66,13 @@ typeCheck =
     poly t = do
       rho <- loop t
       gamma <- asks $ fmap getMono
-      a <- freeze' =<<
+      a <- freezeVars =<<
            Set.difference `liftM`
            getFreeVars rho `ap`
            getAllFreeVars gamma
       return $ T.Forall a rho
       where
-        freeze' =
+        freezeVars =
           mapM $ \ freeVar -> do
             a <- newTypeVar
             _ <- unify (pure freeVar) (wrap $ T.Var a)
