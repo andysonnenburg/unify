@@ -24,11 +24,13 @@ module Control.Monad.Unify
        , unfreeze
        ) where
 
+import Control.Applicative
 import Control.Monad hiding (mapM)
 import Control.Monad.Error.Class
 import Control.Monad.Free as Exports
 import Control.Monad.Ref.Class
 import Control.Monad.State hiding (mapM)
+import Control.Monad.Wrap hiding (mapM)
 import Control.Monad.Writer hiding (mapM)
 
 import Data.Fix
@@ -77,7 +79,7 @@ unify :: MonadUnify f ref m => Term f ref -> Term f ref -> m (Term f ref) -- ^
 unify = unify'
   where
     unify' t1 t2 =
-      evalStateT (loop t1 t2) Map.empty
+      unwrapMonadT $ evalStateT (loop t1 t2) Map.empty
     loop t1 t2 =
       bindM2 (semiprune t1) (semiprune t2) loop'
     loop' (S _ (UnboundVarS r1)) (S t2 (UnboundVarS r2))
@@ -123,7 +125,7 @@ unify = unify'
     match x y =
       maybe
       (throwError $ TermMismatch x y)
-      (liftM Free . mapM (uncurry loop)) $
+      (fmap Free . mapM (uncurry loop)) $
       zipMatch x y
     r `seenAs` f = do
       s <- get
@@ -160,7 +162,7 @@ semiprune = semiprune'
           return $ S t0 (BoundVarS r0 f)
 
 newFreeVar :: MonadRef ref m => m (Var f ref)
-newFreeVar = liftM Var $ newRef Nothing
+newFreeVar = unwrapMonadT $ Var <$> newRef Nothing
 
 getFreeVars :: ( Foldable f
                , Eq (ref (Maybe (Term f ref)))
@@ -227,7 +229,7 @@ rewriteM :: ( Traversable f
             (Term f ref -> m (Maybe (Term f ref))) ->
             Term f ref -> m (Term f ref) -- ^
 rewriteM f =
-  flip evalStateT Map.empty . evalWriterT . loop
+  unwrapMonadT . flip evalStateT Map.empty . evalWriterT . loop
   where
     loop =
       semiprune >=> loop'
@@ -247,24 +249,18 @@ rewriteM f =
       (f', unchanged) <- listen $ mapM loop f
       g $ if getAll unchanged then t else wrap f'
     g t =
-      maybe
-      (t `liftM'` tellUnchanged)
-      (\ t' -> g' t' `ap'` tellChanged) =<<
+      maybe (t <$ tellUnchanged) (\ t' -> g' t' <* tellChanged) =<<
       f' t
     g' t =
-      liftM (fromMaybe t) $ f' t
+      fromMaybe t <$> f' t
     f' =
-      lift . lift . f
+      lift . lift . lift . f
     tellUnchanged =
       tell $ All True
     tellChanged =
       tell $ All False
     evalWriterT =
-      liftM fst . runWriterT
-    liftM' =
-      liftM . const
-    ap' =
-      liftM2 const
+      fmap fst . runWriterT
 
 freeze :: ( Traversable f
           , Eq (ref (Maybe (Term f ref)))
@@ -273,7 +269,7 @@ freeze :: ( Traversable f
           , MonadRef ref m
           ) => Term f ref -> m (f (Fix f)) -- ^
 freeze =
-  liftM getFix . flip evalStateT Map.empty . loop
+  unwrapMonadT . fmap getFix . flip evalStateT Map.empty . loop
   where
     loop =
       semiprune >=> loop'
@@ -282,11 +278,11 @@ freeze =
     loop' (S _ (BoundVarS r f)) =
       whenUnseen r $ do
         r `mustNotOccurIn` f
-        f' <- liftM Fix . mapM loop $ f
+        f' <- Fix <$> mapM loop f
         r `seenAs` f'
         return f'
     loop' (S _ (TermS f)) =
-      liftM Fix . mapM loop $ f
+      Fix <$> mapM loop f
 
 whenUnseen r m = do
   s <- get

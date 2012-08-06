@@ -40,7 +40,9 @@ library
     Control.Monad.Ref.Hashable
     Control.Monad.Trans.Disj
     Control.Monad.Trans.Ref.Int
+    Control.Monad.Trans.Wrap
     Control.Monad.Unify
+    Control.Monad.Wrap
     Data.Fix
   ghc-options: -Wall
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
