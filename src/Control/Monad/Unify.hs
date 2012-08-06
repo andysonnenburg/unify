@@ -28,6 +28,7 @@ import Control.Monad.Error.Class
 import Control.Monad.Free as Exports
 import Control.Monad.Ref.Class
 import Control.Monad.State hiding (mapM)
+import Control.Monad.Writer hiding (mapM)
 
 import Data.Fix
 import Data.Foldable
@@ -36,7 +37,6 @@ import Data.Hashable
 import qualified Data.HashMap.Lazy as Map
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as Set
-import Data.Maybe (fromMaybe)
 import Data.Traversable
 
 import Prelude hiding (mapM)
@@ -209,25 +209,34 @@ rewrite :: MonadUnify f ref m =>
            (Term f ref -> Maybe (Term f ref)) ->
            Term f ref -> m (Term f ref) -- ^
 rewrite f =
-  flip evalStateT Map.empty . loop
+  flip evalStateT Map.empty . evalWriterT . loop
   where
     loop =
       semiprune >=> loop'
     loop' (S t (UnboundVarS r)) =
       whenUnseen r $ do
-        let t' = g t
+        t' <- g t
         r `seenAs` t'
         return t'
-    loop' (S _ (BoundVarS r f)) =
+    loop' (S t (BoundVarS r f)) =
       whenUnseen r $ do
         r `mustNotOccurIn` f
-        t' <- liftM (g . wrap) $ mapM loop f
+        (f', w) <- listen $ mapM loop f
+        t' <- g $ if getAll w then t else wrap f'
         r `seenAs` t'
         return t'
-    loop' (S _ (TermS f)) =
-      liftM (g . wrap) $ mapM loop f
+    loop' (S t (TermS f)) = do
+      (f', w) <- listen $ mapM loop f
+      g $ if getAll w then t else wrap f'
     g t =
-      fromMaybe t $ f t
+      maybe
+      (liftM' t $ tell $ All True)
+      (\ t' -> liftM' t' $ tell $ All False)
+      (f t)
+    evalWriterT =
+      liftM fst . runWriterT
+    liftM' =
+      liftM . const
 
 freeze :: ( Traversable f
           , Eq (ref (Maybe (Term f ref)))

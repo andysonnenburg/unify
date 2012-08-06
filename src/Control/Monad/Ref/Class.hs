@@ -13,6 +13,9 @@ import Control.Monad.Trans.Error
 import Control.Monad.Trans.Reader
 import qualified Control.Monad.Trans.Ref.Int as Int
 import qualified Control.Monad.Trans.State.Lazy as Lazy
+import qualified Control.Monad.Trans.Writer.Lazy as Lazy
+
+import Data.Monoid
 
 import Data.IORef
 import Data.STRef
@@ -42,6 +45,12 @@ instance Monad m => MonadRef (Int.Ref s) (Int.RefSupplyT s m) where
   writeRef = Int.writeRef
   modifyRef = Int.modifyRef
 
+instance (Error e, MonadRef ref m) => MonadRef ref (ErrorT e m) where
+  newRef = lift . newRef
+  readRef = lift . readRef
+  writeRef ref = lift . writeRef ref
+  modifyRef ref = lift . modifyRef ref
+
 instance MonadRef ref m => MonadRef ref (ReaderT r m) where
   newRef = lift . newRef
   readRef = lift . readRef
@@ -54,7 +63,7 @@ instance MonadRef ref m => MonadRef ref (Lazy.StateT s m) where
   writeRef ref = lift . writeRef ref
   modifyRef ref = lift . modifyRef ref
 
-instance (Error e, MonadRef ref m) => MonadRef ref (ErrorT e m) where
+instance (Monoid w, MonadRef ref m) => MonadRef ref (Lazy.WriterT w m) where
   newRef = lift . newRef
   readRef = lift . readRef
   writeRef ref = lift . writeRef ref

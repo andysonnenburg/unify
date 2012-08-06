@@ -49,6 +49,12 @@ typeCheck =
       tau <- liftM pure newFreeVar
       rho <- insertMono x tau $ loop $ getFix t
       return $ wrap $ T.Fn tau rho
+    loop (E.AAbs x (T.Forall a (unfreeze -> tau)) t)
+      | Set.null a = do
+        tau' <- liftM pure newFreeVar
+        rho <- insertMono x tau' $ loop $ getFix t
+        sh (T.Forall Set.empty tau') (T.Forall Set.empty tau)
+        return $ wrap $ T.Fn tau rho
     loop (E.App t u) = do
       tau' <- loop $ getFix t
       tau <- loop $ getFix u
@@ -72,11 +78,10 @@ typeCheck =
            getAllFreeVars gamma
       return $ T.Forall a rho
       where
-        freezeVars =
-          mapM $ \ freeVar -> do
-            a <- newTypeVar
-            _ <- unify (pure freeVar) (wrap $ T.Var a)
-            return a
+        freezeVars = mapM $ \ freeVar -> do
+          a <- newTypeVar
+          _ <- unify (pure freeVar) (wrap $ T.Var a)
+          return a
         mapM f =
           foldlM (\ a -> liftM (flip Set.insert a) . f) Set.empty
 

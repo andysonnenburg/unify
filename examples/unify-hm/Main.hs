@@ -19,7 +19,5 @@ main =
   either (fail . show) return <=<
   runWrappedErrorT <<<
   DM.typeCheck $
-  Let "id" (Fix (Abs "x" (Fix (Var "x"))))
-  (Fix (Annot (Fix (Var "id"))
-        (DM.Forall Set.empty
-         (DM.Fn (Fix DM.Int) (Fix DM.Int)))))
+  Let "id" (Fix (AAbs "x" (DM.Forall Set.empty DM.Int) (Fix (Var "x"))))
+  (Fix (Var "id"))
