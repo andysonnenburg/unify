@@ -8,9 +8,10 @@ module Language.HM.DM.TypeCheck
 
 import Control.Applicative
 import Control.Category ((<<<))
-import Control.Monad.Reader hiding (forM_, mapM)
-import Control.Monad.State hiding (forM_, mapM)
+import Control.Monad.Reader hiding (mapM)
+import Control.Monad.State hiding (mapM)
 import Control.Monad.Unify
+import Control.Monad.Wrap hiding (mapM)
 
 import Data.Fix
 import Data.Foldable
@@ -23,7 +24,7 @@ import Language.HM.DM.Type (Mono, Poly)
 import qualified Language.HM.DM.Type as T
 import qualified Language.HM.Exp as E
 
-import Prelude hiding (mapM)
+import Prelude hiding ((-), mapM)
 
 type Exp = E.Exp (Poly Int (Mono Int (Fix (Mono Int))))
 
@@ -35,6 +36,7 @@ typeCheck :: ( Eq a
              Exp a (Fix (Exp a)) ->
              m (Poly Int (Mono Int (Fix (Mono Int))))
 typeCheck =
+  unwrapMonadT <<<
   flip evalStateT 0 <<<
   flip runReaderT Map.empty <<<
   freezePoly <=<
@@ -46,19 +48,19 @@ typeCheck =
       sigma <- lookupPoly x
       inst sigma
     loop (E.Abs x t) = do
-      tau <- liftM pure newFreeVar
+      tau <- pure <$> newFreeVar
       rho <- insertMono x tau $ loop $ getFix t
       return $ wrap $ T.Fn tau rho
     loop (E.AAbs x (T.Forall a (unfreeze -> tau)) t)
       | Set.null a = do
-        tau' <- liftM pure newFreeVar
+        tau' <- pure <$> newFreeVar
         rho <- insertMono x tau' $ loop $ getFix t
         sh (T.Forall Set.empty tau') (T.Forall Set.empty tau)
         return $ wrap $ T.Fn tau rho
     loop (E.App t u) = do
       tau' <- loop $ getFix t
       tau <- loop $ getFix u
-      rho <- liftM pure newFreeVar
+      rho <- pure <$> newFreeVar
       _ <- unify tau' (wrap $ T.Fn tau rho)
       return rho
     loop (E.Let x u t) = do
@@ -72,10 +74,7 @@ typeCheck =
     poly t = do
       rho <- loop t
       gamma <- asks $ fmap getMono
-      a <- freezeVars =<<
-           Set.difference `liftM`
-           getFreeVars rho `ap`
-           getAllFreeVars gamma
+      a <- freezeVars =<< (-) <$> getFreeVars rho <*> getAllFreeVars gamma
       return $ T.Forall a rho
       where
         freezeVars = mapM $ \ freeVar -> do
@@ -83,11 +82,12 @@ typeCheck =
           _ <- unify (pure freeVar) (wrap $ T.Var a)
           return a
         mapM f =
-          foldlM (\ a -> liftM (flip Set.insert a) . f) Set.empty
+          foldlM (\ a -> fmap (flip Set.insert a) . f) Set.empty
+        (-) = Set.difference
 
     inst (T.Forall as rho) = do
       taus <- foldlM (\ taus a -> do
-        tau <- liftM pure newFreeVar
+        tau <- fmap pure newFreeVar
         return $ Map.insert a tau taus) Map.empty as
       flip rewrite rho $ \ f ->
         case f of
@@ -119,7 +119,7 @@ typeCheck =
     getMono (T.Forall _ rho) = rho
 
     freezePoly (T.Forall a rho) =
-      liftM (T.Forall a) $ freeze rho
+      T.Forall a <$> freeze rho
 
     newTypeVar = do
       s <- get

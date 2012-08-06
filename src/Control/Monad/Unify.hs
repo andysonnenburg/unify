@@ -25,13 +25,12 @@ module Control.Monad.Unify
        ) where
 
 import Control.Applicative
-import Control.Monad hiding (mapM)
 import Control.Monad.Error.Class
 import Control.Monad.Free as Exports
 import Control.Monad.Ref.Class
-import Control.Monad.State hiding (mapM)
-import Control.Monad.Wrap hiding (mapM)
-import Control.Monad.Writer hiding (mapM)
+import Control.Monad.State
+import Control.Monad.Wrap
+import Control.Monad.Writer
 
 import Data.Fix
 import Data.Foldable
@@ -42,8 +41,6 @@ import Data.HashSet (HashSet)
 import qualified Data.HashSet as Set
 import Data.Maybe (fromMaybe)
 import Data.Traversable
-
-import Prelude hiding (mapM)
 
 newtype Var f ref = Var (ref (Maybe (Term f ref)))
 deriving instance Eq (ref (Maybe (Term f ref))) => Eq (Var f ref)
@@ -125,7 +122,7 @@ unify = unify'
     match x y =
       maybe
       (throwError $ TermMismatch x y)
-      (fmap Free . mapM (uncurry loop)) $
+      (fmap Free . traverse (uncurry loop)) $
       zipMatch x y
     r `seenAs` f = do
       s <- get
@@ -241,12 +238,12 @@ rewriteM f =
     loop' (S t (BoundVarS r f)) =
       whenUnseen r $ do
         r `mustNotOccurIn` f
-        (f', unchanged) <- listen $ mapM loop f
+        (f', unchanged) <- listen $ traverse loop f
         t' <- g $ if getAll unchanged then t else wrap f'
         r `seenAs` t'
         return t'
     loop' (S t (TermS f)) = do
-      (f', unchanged) <- listen $ mapM loop f
+      (f', unchanged) <- listen $ traverse loop f
       g $ if getAll unchanged then t else wrap f'
     g t =
       maybe (t <$ tellUnchanged) (\ t' -> g' t' <* tellChanged) =<<
@@ -278,11 +275,11 @@ freeze =
     loop' (S _ (BoundVarS r f)) =
       whenUnseen r $ do
         r `mustNotOccurIn` f
-        f' <- Fix <$> mapM loop f
+        f' <- Fix <$> traverse loop f
         r `seenAs` f'
         return f'
     loop' (S _ (TermS f)) =
-      Fix <$> mapM loop f
+      Fix <$> traverse loop f
 
 whenUnseen r m = do
   s <- get
