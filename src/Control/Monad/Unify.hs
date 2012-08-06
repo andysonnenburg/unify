@@ -19,6 +19,7 @@ module Control.Monad.Unify
        , getFreeVars
        , getAllFreeVars
        , rewrite
+       , rewriteM
        , freeze
        , unfreeze
        ) where
@@ -44,6 +45,7 @@ import Prelude hiding (mapM)
 
 newtype Var f ref = Var (ref (Maybe (Term f ref)))
 deriving instance Eq (ref (Maybe (Term f ref))) => Eq (Var f ref)
+deriving instance Ord (ref (Maybe (Term f ref))) => Ord (Var f ref)
 deriving instance Show (ref (Maybe (Term f ref))) => Show (Var f ref)
 
 instance Hashable (ref (Maybe (Term f ref))) => Hashable (Var f ref) where
@@ -214,7 +216,17 @@ rewrite :: ( Traversable f
            ) =>
            (Term f ref -> Maybe (Term f ref)) ->
            Term f ref -> m (Term f ref) -- ^
-rewrite f =
+rewrite = rewriteM . (return .)
+
+rewriteM :: ( Traversable f
+            , Eq (ref (Maybe (Term f ref)))
+            , Hashable (ref (Maybe (Term f ref)))
+            , MonadError (UnificationError f ref) m
+            , MonadRef ref m
+            ) =>
+            (Term f ref -> m (Maybe (Term f ref))) ->
+            Term f ref -> m (Term f ref) -- ^
+rewriteM f =
   flip evalStateT Map.empty . evalWriterT . loop
   where
     loop =
@@ -237,10 +249,12 @@ rewrite f =
     g t =
       maybe
       (t `liftM'` tellUnchanged)
-      (\ t' -> g' t' `liftM'` tellChanged)
-      (f t)
+      (\ t' -> g' t' `ap'` tellChanged) =<<
+      f' t
     g' t =
-      fromMaybe t $ f t
+      liftM (fromMaybe t) $ f' t
+    f' =
+      lift . lift . f
     tellUnchanged =
       tell $ All True
     tellChanged =
@@ -249,6 +263,8 @@ rewrite f =
       liftM fst . runWriterT
     liftM' =
       liftM . const
+    ap' =
+      liftM2 const
 
 freeze :: ( Traversable f
           , Eq (ref (Maybe (Term f ref)))
