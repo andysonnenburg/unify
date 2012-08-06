@@ -37,6 +37,7 @@ import Data.Hashable
 import qualified Data.HashMap.Lazy as Map
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as Set
+import Data.Maybe (fromMaybe)
 import Data.Traversable
 
 import Prelude hiding (mapM)
@@ -221,18 +222,24 @@ rewrite f =
     loop' (S t (BoundVarS r f)) =
       whenUnseen r $ do
         r `mustNotOccurIn` f
-        (f', w) <- listen $ mapM loop f
-        t' <- g $ if getAll w then t else wrap f'
+        (f', unchanged) <- listen $ mapM loop f
+        t' <- g $ if getAll unchanged then t else wrap f'
         r `seenAs` t'
         return t'
     loop' (S t (TermS f)) = do
-      (f', w) <- listen $ mapM loop f
-      g $ if getAll w then t else wrap f'
+      (f', unchanged) <- listen $ mapM loop f
+      g $ if getAll unchanged then t else wrap f'
     g t =
       maybe
-      (liftM' t $ tell $ All True)
-      (\ t' -> liftM' t' $ tell $ All False)
+      (t `liftM'` tellUnchanged)
+      (\ t' -> g' t' `liftM'` tellChanged)
       (f t)
+    g' t =
+      fromMaybe t $ f t
+    tellUnchanged =
+      tell $ All True
+    tellChanged =
+      tell $ All False
     evalWriterT =
       liftM fst . runWriterT
     liftM' =
