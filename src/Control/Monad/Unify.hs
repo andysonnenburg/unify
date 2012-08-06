@@ -206,7 +206,12 @@ foldlUnboundVarsM k a0 =
       p <- m
       if p then x else y
 
-rewrite :: MonadUnify f ref m =>
+rewrite :: ( Traversable f
+           , Eq (ref (Maybe (Term f ref)))
+           , Hashable (ref (Maybe (Term f ref)))
+           , MonadError (UnificationError f ref) m
+           , MonadRef ref m
+           ) =>
            (Term f ref -> Maybe (Term f ref)) ->
            Term f ref -> m (Term f ref) -- ^
 rewrite f =
