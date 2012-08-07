@@ -271,7 +271,7 @@ freeze =
     loop' (S _ (UnboundVarS r)) =
       throwError $ UnboundVar $ Var r
     loop' (S _ (BoundVarS r f)) =
-      whenUnseen r $ do
+      r `whenUnseen` do
         r `mustNotOccurIn` f
         f' <- Fix <$> traverse loop f
         r `seenAs` f'
@@ -279,7 +279,7 @@ freeze =
     loop' (S _ (TermS f)) =
       Fix <$> traverse loop f
 
-whenUnseen r m = do
+r `whenUnseen` m = do
   s <- get
   case Map.lookup r s of
     Nothing -> m
