@@ -4,9 +4,7 @@
   , StandaloneDeriving
   , TypeFamilies
   , UndecidableInstances #-}
-{-# OPTIONS_GHC
-    -fno-warn-missing-signatures
-    -fno-warn-name-shadowing #-}
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 module Control.Monad.Unify
        ( module Exports
        , Var
@@ -231,12 +229,12 @@ rewriteM f =
     loop =
       semiprune >=> loop'
     loop' (S t (UnboundVarS r)) =
-      whenUnseen r $ do
+      r `whenUnseen` do
         t' <- g t
         r `seenAs` t'
         return t'
     loop' (S t (BoundVarS r f)) =
-      whenUnseen r $ do
+      r `whenUnseen` do
         r `mustNotOccurIn` f
         (f', unchanged) <- listen $ traverse loop f
         t' <- g $ if getAll unchanged then t else wrap f'
@@ -246,10 +244,10 @@ rewriteM f =
       (f', unchanged) <- listen $ traverse loop f
       g $ if getAll unchanged then t else wrap f'
     g t =
-      maybe (t <$ tellUnchanged) (\ t' -> g' t' <* tellChanged) =<<
+      maybe
+      (t <$ tellUnchanged)
+      (\ t' -> fromMaybe t' <$> f' t' <* tellChanged) =<<
       f' t
-    g' t =
-      fromMaybe t <$> f' t
     f' =
       lift . lift . lift . f
     tellUnchanged =

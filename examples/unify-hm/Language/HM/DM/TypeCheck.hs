@@ -74,7 +74,7 @@ typeCheck =
     poly t = do
       rho <- loop t
       gamma <- asks $ fmap getMono
-      a <- freezeVars =<< (-) <$> getFreeVars rho <*> getAllFreeVars gamma
+      a <- freezeVars =<< (\\) <$> getFreeVars rho <*> getAllFreeVars gamma
       return $ T.Forall a rho
       where
         freezeVars = mapM $ \ freeVar -> do
@@ -83,7 +83,8 @@ typeCheck =
           return a
         mapM f =
           foldlM (\ a -> fmap (flip Set.insert a) . f) Set.empty
-        (-) = Set.difference
+        (\\) =
+          Set.difference
 
     inst (T.Forall as rho) = do
       taus <- foldlM (\ taus a -> do
