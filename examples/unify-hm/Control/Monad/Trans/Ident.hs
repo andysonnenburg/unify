@@ -1,4 +1,4 @@
-{-# LANGUAGE PolyKinds, Rank2Types #-}
+{-# LANGUAGE Rank2Types #-}
 module Control.Monad.Trans.Ident
        ( module Exports
        , Ident

@@ -1,13 +1,15 @@
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE EmptyDataDecls #-}
 module Language.HM.Var
-       ( Kind (..)
+       ( Value
+       , Type
        , newVar
        , newTypeVar
        ) where
 
 import Control.Monad.Ident.Class
 
-data Kind = Value | Type
+data Value
+data Type
 
 newVar :: MonadIdent i m => m (i Value)
 newVar = newIdent (index :: Index Value)

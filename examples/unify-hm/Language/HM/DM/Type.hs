@@ -1,6 +1,5 @@
 {-# LANGUAGE
-    DataKinds
-  , DeriveFoldable
+    DeriveFoldable
   , DeriveFunctor
   , DeriveTraversable
   , FlexibleContexts

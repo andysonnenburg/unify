@@ -1,6 +1,5 @@
 {-# LANGUAGE
-    DataKinds
-  , FlexibleContexts
+    FlexibleContexts
   , StandaloneDeriving #-}
 module Language.HM.DM.Exp
        ( Exp (..)

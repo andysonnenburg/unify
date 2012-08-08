@@ -1,6 +1,5 @@
 {-# LANGUAGE
     ConstraintKinds
-  , DataKinds
   , FlexibleContexts
   , ViewPatterns #-}
 module Language.HM.DM.InferType
