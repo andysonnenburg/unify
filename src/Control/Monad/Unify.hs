@@ -262,9 +262,9 @@ freeze :: ( Traversable f
           , Hashable (ref (Maybe (Term f ref)))
           , MonadError (UnificationError f ref) m
           , MonadRef ref m
-          ) => Term f ref -> m (f (Fix f)) -- ^
+          ) => Term f ref -> m (Fix f) -- ^
 freeze =
-  unwrapMonadT . fmap getFix . flip evalStateT Map.empty . loop
+  unwrapMonadT . flip evalStateT Map.empty . loop
   where
     loop =
       semiprune >=> loop'
@@ -292,8 +292,8 @@ r `mustNotOccurIn` f =
 r `seenAs` f =
   modify $ Map.insert r (Right f)
 
-unfreeze :: Functor f => f (Fix f) -> Term f ref
-unfreeze = Free . fmap (unfreeze . getFix)
+unfreeze :: Functor f => Fix f -> Term f ref
+unfreeze = Free . fmap unfreeze . getFix
 
 localState :: MonadState s m => m a -> m a
 localState m = do

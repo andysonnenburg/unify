@@ -1,7 +1,11 @@
 {-# LANGUAGE
-    DeriveFoldable
+    DataKinds
+  , DeriveFoldable
   , DeriveFunctor
-  , DeriveTraversable #-}
+  , DeriveTraversable
+  , FlexibleContexts
+  , StandaloneDeriving
+  , UndecidableInstances #-}
 module Language.HM.DM.Type
        ( Poly (..)
        , Rho
@@ -14,16 +18,20 @@ import Data.Foldable
 import Data.HashSet (HashSet)
 import Data.Traversable
 
-data Poly a f = Forall (HashSet a) f deriving (Show, Functor)
+import Language.HM.Var
+
+data Poly a f = Forall (HashSet (a Type)) f deriving Functor
+deriving instance (Show (a Type), Show f) => Show (Poly a f)
 
 type Rho = Mono
 
 data Mono a f
   = Int
   | Fn f f
-  | Var a deriving (Show, Functor, Foldable, Traversable)
+  | Var (a Type) deriving (Functor, Foldable, Traversable)
+deriving instance (Show (a Type), Show f) => Show (Mono a f)
 
-instance Eq a => Unifiable (Mono a) where
+instance Eq (a Type) => Unifiable (Mono a) where
   zipMatch = go
     where
       go Int Int = Just Int

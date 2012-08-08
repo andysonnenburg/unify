@@ -10,6 +10,7 @@ module Control.Monad.Ref.Class
 import Control.Monad.ST
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Error
+import Control.Monad.Trans.Error.Wrap
 import Control.Monad.Trans.Reader
 import qualified Control.Monad.Trans.Ref.Int as Int
 import qualified Control.Monad.Trans.State.Lazy as Lazy
@@ -58,6 +59,12 @@ instance MonadRef ref m => MonadRef ref (ReaderT r m) where
   modifyRef ref = lift . modifyRef ref
 
 instance MonadRef ref m => MonadRef ref (Lazy.StateT s m) where
+  newRef = lift . newRef
+  readRef = lift . readRef
+  writeRef ref = lift . writeRef ref
+  modifyRef ref = lift . modifyRef ref
+
+instance MonadRef ref m => MonadRef ref (WrappedErrorT e m) where
   newRef = lift . newRef
   readRef = lift . readRef
   writeRef ref = lift . writeRef ref

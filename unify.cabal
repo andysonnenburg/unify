@@ -39,6 +39,7 @@ library
     Control.Monad.Ref
     Control.Monad.Ref.Hashable
     Control.Monad.Trans.Disj
+    Control.Monad.Trans.Error.Wrap
     Control.Monad.Trans.Ref.Int
     Control.Monad.Trans.Wrap
     Control.Monad.Unify
@@ -59,9 +60,9 @@ executable unify-hm
   main-is: Main.hs
   other-modules:
     Language.HM.Lex.Internal
-    Language.HM.Parse.Internal
   build-depends:
     base,
+    transformers,
     mtl,
     hashable,
     unordered-containers >= 0.2.1.0,

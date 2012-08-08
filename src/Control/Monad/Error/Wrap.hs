@@ -1,79 +1,21 @@
 {-# LANGUAGE
     FlexibleInstances
-  , MultiParamTypeClasses
-  , UndecidableInstances #-}
+  , MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Control.Monad.Error.Wrap
        ( module Exports
-       , WrappedError (..)
-       , WrappedErrorT (..)
-       , runWrappedErrorT
        ) where
 
-import Control.Applicative
-import Control.Monad.Error as Exports
-import Control.Monad.Ref.Class
+import Control.Monad as Exports
+import Control.Monad.Error.Class as Exports
+import Control.Monad.Fix as Exports
+import Control.Monad.Trans as Exports
 
-data WrappedError e
-  = NoMsg
-  | StrMsg String
-  | Error !e deriving Show
-
-instance Functor WrappedError where
-  fmap _ NoMsg = NoMsg
-  fmap _ (StrMsg s) = StrMsg s
-  fmap f (Error e) = Error (f e)
-
-instance Error (WrappedError e) where
-  noMsg = NoMsg
-  strMsg = StrMsg
-
-newtype WrappedErrorT e m a
-  = WrapErrorT { unwrapErrorT :: ErrorT (WrappedError e) m a
-               }
-
-runWrappedErrorT :: WrappedErrorT e m a -> m (Either (WrappedError e) a)
-runWrappedErrorT = runErrorT . unwrapErrorT
-
-instance Functor m => Functor (WrappedErrorT e m) where
-  fmap f = WrapErrorT . fmap f . unwrapErrorT
-
-instance (Functor m, Monad m) => Applicative (WrappedErrorT e m) where
-  pure = WrapErrorT . return
-  f <*> v = WrapErrorT $ unwrapErrorT f <*> unwrapErrorT v
-
-instance (Functor m, Monad m) => Alternative (WrappedErrorT e m) where
-  empty = mzero
-  (<|>) = mplus
-
-instance Monad m => Monad (WrappedErrorT e m) where
-  return = WrapErrorT . return
-  m >>= k = WrapErrorT $ unwrapErrorT m >>= unwrapErrorT . k
-  m >> n = WrapErrorT $ unwrapErrorT m >> unwrapErrorT n
-  fail = WrapErrorT . fail
-
-instance Monad m => MonadPlus (WrappedErrorT e m) where
-  mzero = WrapErrorT mzero
-  m `mplus` n = WrapErrorT $ unwrapErrorT m `mplus` unwrapErrorT n
+import qualified Control.Monad.Trans.Error.Wrap as Wrap
+import Control.Monad.Trans.Error.Wrap as Exports (WrappedError (..),
+                                                  WrappedErrorT,
+                                                  runWrappedErrorT)
 
 instance Monad m => MonadError e (WrappedErrorT e m) where
-  throwError = WrapErrorT . throwError . Error
-  m `catchError` h = WrapErrorT $ unwrapErrorT m `catchError` h'
-    where
-      h' e@NoMsg = throwError e
-      h' e@(StrMsg _) = throwError e
-      h' (Error e) = unwrapErrorT $ h e
-
-instance MonadFix m => MonadFix (WrappedErrorT e m) where
-  mfix = WrapErrorT . mfix . (unwrapErrorT .)
-
-instance MonadTrans (WrappedErrorT e) where
-  lift = WrapErrorT . lift
-
-instance MonadIO m => MonadIO (WrappedErrorT e m) where
-  liftIO = WrapErrorT . liftIO
-
-instance MonadRef ref m => MonadRef ref (WrappedErrorT e m) where
-  newRef = lift . newRef
-  readRef = lift . readRef
-  writeRef ref = lift . writeRef ref
-  modifyRef ref = lift . modifyRef ref
+  throwError = Wrap.throwError
+  catchError = Wrap.catchError

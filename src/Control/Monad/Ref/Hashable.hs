@@ -53,8 +53,8 @@ instance (Functor m, Monad m) => Applicative (RefSupplyT m) where
   a <* b = RefSupplyT $ unRefSupplyT a <* unRefSupplyT b
 
 instance (Functor m, MonadPlus m) => Alternative (RefSupplyT m) where
-  empty = mzero
-  (<|>) = mplus
+  empty = RefSupplyT empty
+  a <|> b = RefSupplyT $ unRefSupplyT a <|> unRefSupplyT b
 
 instance Monad m => Monad (RefSupplyT m) where
   return = RefSupplyT . return
