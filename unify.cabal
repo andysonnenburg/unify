@@ -62,6 +62,7 @@ executable unify-hm
     Language.HM.Lex.Internal
   build-depends:
     base,
+    array,
     transformers,
     mtl,
     hashable,
