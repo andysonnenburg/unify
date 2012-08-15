@@ -4,7 +4,9 @@
   , StandaloneDeriving
   , TypeFamilies
   , UndecidableInstances #-}
-{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
+{-# OPTIONS_GHC
+    -fno-warn-missing-signatures
+    -fno-warn-name-shadowing #-}
 module Control.Monad.Unify
        ( module Exports
        , Var
@@ -14,8 +16,8 @@ module Control.Monad.Unify
        , MonadUnify
        , unify
        , newFreeVar
-       , getFreeVars
-       , getAllFreeVars
+       , universe
+       , universes
        , rewrite
        , rewriteM
        , freeze
@@ -25,6 +27,7 @@ module Control.Monad.Unify
 import Control.Applicative
 import Control.Monad.Error.Class
 import Control.Monad.Free as Exports
+import Control.Monad.Reader
 import Control.Monad.Ref.Class
 import Control.Monad.State
 import Control.Monad.Wrap
@@ -35,7 +38,6 @@ import Data.Foldable
 import Data.Functor.Identity
 import Data.Hashable
 import qualified Data.HashMap.Lazy as Map
-import Data.HashSet (HashSet)
 import qualified Data.HashSet as Set
 import Data.Maybe (fromMaybe)
 import Data.Traversable
@@ -74,7 +76,7 @@ unify :: MonadUnify f ref m => Term f ref -> Term f ref -> m (Term f ref) -- ^
 unify = unify'
   where
     unify' t1 t2 =
-      unwrapMonadT $ evalStateT (loop t1 t2) Map.empty
+      unwrapMonadT $ runReaderT (loop t1 t2) Map.empty
     loop t1 t2 =
       bindM2 (semiprune t1) (semiprune t2) loop'
     loop' (S _ (UnboundVarS r1)) (S t2 (UnboundVarS r2))
@@ -93,10 +95,10 @@ unify = unify'
       | r1 == r2 =
         return t2
       | otherwise = do
-        writeRef r2 . Just <=< localState $ do
-          r1 `seenAs` f1
-          r2 `seenAs` f2
-          match f1 f2
+        writeRef r2 . Just =<<
+          (r1 `mustNotOccurIn` f1 $
+           r2 `mustNotOccurIn` f2 $
+           match f1 f2)
         writeRef r1 $ Just t2
         return t2
     loop' (S t1 (UnboundVarS r1)) (S t2 (TermS _)) = do
@@ -106,14 +108,14 @@ unify = unify'
       writeRef r2 $ Just t1
       return t2
     loop' (S t1 (BoundVarS r1 f1)) (S _ (TermS f2)) = do
-      writeRef r1 . Just <=< localState $ do
-        r1 `seenAs` f1
-        match f1 f2
+      writeRef r1 . Just =<<
+        (r1 `mustNotOccurIn` f1 $
+         match f1 f2)
       return t1
     loop' (S _ (TermS f1)) (S t2 (BoundVarS r2 f2)) = do
-      writeRef r2 . Just <=< localState $ do
-        r2 `seenAs` f2
-        match f1 f2
+      writeRef r2 . Just =<<
+        (r2 `mustNotOccurIn` f2 $
+         match f1 f2)
       return t2
     loop' (S _ (TermS f1)) (S _ (TermS f2)) =
       match f1 f2
@@ -122,12 +124,12 @@ unify = unify'
       (throwError $ TermMismatch x y)
       (fmap Free . traverse (uncurry loop)) $
       zipMatch x y
-    r `seenAs` f = do
-      s <- get
+    (r `mustNotOccurIn` f) m =
       maybe
-        (put $! Map.insert r f s)
-        (\ f' -> throwError $ Var r `OccursIn` f') $
-        Map.lookup r s
+      (local (Map.insert r f) m)
+      (\ f' -> throwError $ Var r `OccursIn` f') =<<
+      asks (Map.lookup r)
+        
 
 data TermS f ref
   = S !(Term f ref) !(Semipruned f ref)
@@ -159,44 +161,35 @@ semiprune = semiprune'
 newFreeVar :: MonadRef ref m => m (Var f ref)
 newFreeVar = unwrapMonadT $ Var <$> newRef Nothing
 
-getFreeVars :: ( Foldable f
-               , Eq (ref (Maybe (Term f ref)))
-               , Hashable (ref (Maybe (Term f ref)))
-               , MonadRef ref m
-               ) => Term f ref -> m (HashSet (Var f ref)) -- ^
-getFreeVars =
-  getAllFreeVars . Identity
+universe :: ( Foldable f
+            , Eq (ref (Maybe (Term f ref)))
+            , Hashable (ref (Maybe (Term f ref)))
+            , MonadRef ref m
+            ) => Term f ref -> m [Term f ref]
+universe =
+  universes . Identity
 
-getAllFreeVars :: ( Foldable c
-                  , Foldable f
-                  , Eq (ref (Maybe (Term f ref)))
-                  , Hashable (ref (Maybe (Term f ref)))
-                  , MonadRef ref m
-                  ) => c (Term f ref) -> m (HashSet (Var f ref)) -- ^
-getAllFreeVars =
-  foldlUnboundVarsM (\ a -> return . flip Set.insert a) Set.empty
-
-foldlUnboundVarsM :: ( Foldable c
-                     , Foldable f
-                     , Eq (ref (Maybe (Term f ref)))
-                     , Hashable (ref (Maybe (Term f ref)))
-                     , MonadRef ref m
-                     ) => (a -> Var f ref -> m a) -> a -> c (Term f ref) -> m a
-foldlUnboundVarsM k a0 =
+universes :: ( Foldable f
+             , Foldable w
+             , Eq (ref (Maybe (Term w ref)))
+             , Hashable (ref (Maybe (Term w ref)))
+             , MonadRef ref m
+             ) => f (Term w ref) -> m [Term w ref]
+universes =
   flip evalStateT Set.empty .
-  foldlM loop a0
+  foldlM loop []
   where
     loop a =
       semiprune >=> loop' a
-    loop' a (S _ (UnboundVarS r)) =
-      lift $ k a $ Var r
+    loop' a (S t (UnboundVarS r)) =
+      ifM (hasSeen r) (return a) (return $ t:a)
     loop' a (S _ (BoundVarS r f)) =
       ifM (hasSeen r)
       (return a) $ do
         seen r
         foldlM loop a f
-    loop' a (S _ (TermS f)) =
-      foldlM loop a f
+    loop' a (S t (TermS f)) =
+      liftM (t:) $ foldlM loop a f
     hasSeen r =
       gets $ Set.member r
     seen r =
@@ -294,13 +287,6 @@ r `seenAs` f =
 
 unfreeze :: Functor f => Fix f -> Term f ref
 unfreeze = Free . fmap unfreeze . getFix
-
-localState :: MonadState s m => m a -> m a
-localState m = do
-  s <- get
-  a <- m
-  put s
-  return a
 
 bindM2 :: Monad m => m a -> m b -> (a -> b -> m c) -> m c
 bindM2 a b f = do

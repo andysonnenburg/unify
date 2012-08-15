@@ -1,6 +1,7 @@
 {-# LANGUAGE
     ConstraintKinds
   , FlexibleContexts
+  , NoMonomorphismRestriction
   , ViewPatterns #-}
 module Language.HM.DM.InferType
        ( inferType
@@ -28,13 +29,13 @@ import Language.HM.Var
 
 import Prelude hiding ( mapM)
 
-inferType :: ( Eq (i Value)
+{- inferType :: ( Eq (i Value)
              , Hashable (i Value)
              , Eq (i Type)
              , Hashable (i Type)
              , MonadIdent i m
              , MonadUnify (Mono i) ref m
-             ) => Exp i (Fix (Exp i)) -> m (Poly i (Fix (Mono i)))
+             ) => Exp i (Fix (Exp i)) -> m (Poly i (Fix (Mono i))) -}
 inferType =
   unwrapMonadT <<<
   flip runReaderT Map.empty <<<
@@ -72,6 +73,9 @@ inferType =
     poly t = do
       rho <- loop t
       gamma <- asks $ fmap getMono
+      liftIO . print =<< universe rho
+      liftIO . print =<< universes gamma
+      liftIO . print $ gamma
       a <- freezeVars =<< (\\) <$> getFreeVars rho <*> getAllFreeVars gamma
       return $ T.Forall a rho
       where
@@ -119,3 +123,11 @@ inferType =
 
     freezePoly (T.Forall a rho) =
       T.Forall a <$> freeze rho
+    
+    getFreeVars t = do
+      xs <- universe t
+      return $ Set.fromList [x | Pure x <- xs]
+    
+    getAllFreeVars ts = do
+      xs <- universes ts
+      return $ Set.fromList [x | Pure x <- xs]

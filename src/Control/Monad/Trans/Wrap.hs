@@ -25,3 +25,6 @@ instance Monad m => Monad (WrappedMonadT m) where
 
 instance MonadTrans WrappedMonadT where
   lift = WrapMonadT
+
+instance MonadIO m => MonadIO (WrappedMonadT m) where
+  liftIO = lift . liftIO
