@@ -58,8 +58,6 @@ executable unify-main
 executable unify-hm
   hs-source-dirs: examples/unify-hm
   main-is: Main.hs
-  other-modules:
-    Language.HM.Lex.Internal
   build-depends:
     base,
     array,
