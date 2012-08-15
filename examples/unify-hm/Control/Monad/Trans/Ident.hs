@@ -17,7 +17,7 @@ import Control.Monad.Trans.State
 
 import Data.Functor.Identity
 import Data.Hashable
-import Data.Index as Exports
+import Data.Proxy as Exports
 
 newtype Ident s a = Ident { unIdent :: S } deriving (Show, Eq)
 
@@ -65,7 +65,7 @@ instance MonadIO m => MonadIO (IdentSupplyT s m) where
 runIdentSupplyT :: Monad m => (forall s . IdentSupplyT s m a) -> m a
 runIdentSupplyT m = flip evalStateT 0 (unIdentSupplyT m)
 
-newIdent :: Monad m => Index a -> IdentSupplyT s m (Ident s a)
+newIdent :: Monad m => Proxy a -> IdentSupplyT s m (Ident s a)
 newIdent _ = IdentSupplyT $ do
   s <- get
   put $! s + 1

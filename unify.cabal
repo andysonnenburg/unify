@@ -67,6 +67,8 @@ executable unify-hm
     mtl,
     hashable,
     unordered-containers >= 0.2.1.0,
+    free,
+    tagged,
     unify
   ghc-options: -Wall
   build-tools: alex, happy

@@ -18,10 +18,10 @@ import Control.Monad.Trans.Ref.Int
 import qualified Control.Monad.Trans.State.Lazy as Lazy
 import Control.Monad.Trans.Wrap
 
-import Data.Index as Exports
+import Data.Proxy as Exports
 
 class Monad m => MonadIdent i m | m -> i where
-  newIdent :: Index a -> m (i a)
+  newIdent :: Proxy a -> m (i a)
 
 instance Monad m => MonadIdent (Ident s) (IdentSupplyT s m) where
   newIdent = Ident.newIdent
