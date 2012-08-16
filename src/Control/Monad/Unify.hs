@@ -17,9 +17,9 @@ module Control.Monad.Unify
        , unify
        , newFreeVar
        , universe
-       , universes
        , rewrite
        , rewriteM
+       , universeBi
        , freeze
        , unfreeze
        ) where
@@ -39,7 +39,6 @@ import Data.Functor.Identity
 import Data.Hashable
 import qualified Data.HashMap.Lazy as Map
 import qualified Data.HashSet as Set
-import Data.Maybe (fromMaybe)
 import Data.Traversable
 
 newtype Var f ref = Var (ref (Maybe (Term f ref)))
@@ -167,15 +166,15 @@ universe :: ( Foldable f
             , MonadRef ref m
             ) => Term f ref -> m [Term f ref]
 universe =
-  universes . Identity
+  universeBi . Identity
 
-universes :: ( Foldable f
+universeBi :: ( Foldable f
              , Foldable w
              , Eq (ref (Maybe (Term w ref)))
              , Hashable (ref (Maybe (Term w ref)))
              , MonadRef ref m
              ) => f (Term w ref) -> m [Term w ref]
-universes =
+universeBi =
   flip evalStateT Set.empty .
   foldlM loop []
   where
@@ -238,9 +237,13 @@ rewriteM f =
       g $ if getAll unchanged then t else wrap f'
     g t =
       maybe
-      (t <$ tellUnchanged)
-      (\ t' -> fromMaybe t' <$> f' t' <* tellChanged) =<<
-      f' t
+      (do
+          tellUnchanged
+          return t)
+      (\ t' -> do
+          tellChanged
+          maybe (return t') g =<< f' t') <=<
+      f' $ t
     f' =
       lift . lift . lift . f
     tellUnchanged =

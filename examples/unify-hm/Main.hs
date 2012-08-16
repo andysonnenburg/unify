@@ -25,6 +25,6 @@ main =
    inferType =<< do
      id <- newVar
      x <- newVar
-     return $
-       Let id (Fix (AAbs x (Fix Int) (Fix (Var x))))
+     return $ Fix $
+       Let id (Fix (AAbs (x, Fix Int) (Fix (Var x))))
        (Fix (Var id)))

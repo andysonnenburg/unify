@@ -1,7 +1,8 @@
 {-# LANGUAGE
     ConstraintKinds
   , FlexibleContexts
-  , NoMonomorphismRestriction
+  , GADTs
+  , ScopedTypeVariables
   , ViewPatterns #-}
 module Language.HM.DM.InferType
        ( inferType
@@ -21,26 +22,29 @@ import Data.HashMap.Lazy ((!))
 import qualified Data.HashMap.Lazy as Map
 import qualified Data.HashSet as Set
 
-import Language.HM.DM.Exp (Exp)
+import Language.HM.DM.Exp (Exp, I)
 import qualified Language.HM.DM.Exp as E
 import Language.HM.DM.Type (Mono, Poly)
 import qualified Language.HM.DM.Type as T
 import Language.HM.Var
 
-import Prelude hiding ( mapM)
+import Prelude hiding (mapM)
 
-{- inferType :: ( Eq (i Value)
-             , Hashable (i Value)
-             , Eq (i Type)
-             , Hashable (i Type)
-             , MonadIdent i m
-             , MonadUnify (Mono i) ref m
-             ) => Exp i (Fix (Exp i)) -> m (Poly i (Fix (Mono i))) -}
+inferType :: forall name ref m .
+             ( Eq (name Value)
+             , Hashable (name Value)
+             , Eq (name Type)
+             , Hashable (name Type)
+             , MonadIdent name m
+             , MonadUnify (T.Mono name) ref m
+             ) =>
+             Fix (Exp I name (Fix (Mono name))) ->
+             m (Poly name (Fix (Mono name))) -- ^
 inferType =
   unwrapMonadT <<<
   flip runReaderT Map.empty <<<
   freezePoly <=<
-  poly
+  poly . getFix
   where
     loop (E.Lit _) =
       return $ wrap T.Int
@@ -51,7 +55,7 @@ inferType =
       tau <- pure <$> newFreeVar
       rho <- insertMono x tau $ loop $ getFix t
       return $ wrap $ T.Fn tau rho
-    loop (E.AAbs x (unfreeze -> tau) t) = do
+    loop (E.AAbs (x, unfreeze -> tau) t) = do
       tau' <- pure <$> newFreeVar
       rho <- insertMono x tau' $ loop $ getFix t
       sh (T.Forall Set.empty tau') (T.Forall Set.empty tau)
@@ -65,7 +69,7 @@ inferType =
     loop (E.Let x u t) = do
       sigma <- poly $ getFix u
       insertPoly x sigma $ loop $ getFix t
-    loop (E.Annot t (fmap unfreeze -> sigma)) = do
+    loop (E.Ann t (fmap unfreeze -> sigma)) = do
       sigma' <- poly $ getFix t
       sh sigma' sigma
       inst sigma
@@ -73,9 +77,6 @@ inferType =
     poly t = do
       rho <- loop t
       gamma <- asks $ fmap getMono
-      liftIO . print =<< universe rho
-      liftIO . print =<< universes gamma
-      liftIO . print $ gamma
       a <- freezeVars =<< (\\) <$> getFreeVars rho <*> getAllFreeVars gamma
       return $ T.Forall a rho
       where
@@ -106,9 +107,8 @@ inferType =
       rho1 <- inst sigma
       mono rho1 rho2
 
-    mono tau tau' = do
-      _ <- unify tau tau'
-      return ()
+    mono tau tau' =
+      void $ unify tau tau'
 
     lookupPoly x =
       asks (!x)
@@ -129,5 +129,5 @@ inferType =
       return $ Set.fromList [x | Pure x <- xs]
     
     getAllFreeVars ts = do
-      xs <- universes ts
+      xs <- universeBi ts
       return $ Set.fromList [x | Pure x <- xs]

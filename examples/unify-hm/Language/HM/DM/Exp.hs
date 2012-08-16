@@ -1,21 +1,40 @@
 {-# LANGUAGE
-    FlexibleContexts
-  , StandaloneDeriving #-}
+    EmptyDataDecls
+  , FlexibleContexts
+  , GADTs
+  , StandaloneDeriving
+  , TypeFamilies #-}
 module Language.HM.DM.Exp
-       ( Exp (..)
+       ( I, E
+       , Exp (..)
+       , Binder
        ) where
+
+import Data.Fix
 
 import Language.HM.DM.Type
 import Language.HM.Var
 
-import Data.Fix
+data I
+data E
 
-data Exp a f
-  = Lit Int
-  | Var (a Value)
-  | Abs (a Value) f
-  | AAbs (a Value) (Fix (Mono a)) f
-  | App f f
-  | Let (a Value) f f
-  | Annot f (Poly a (Fix (Mono a)))
-deriving instance (Show (a Value), Show (a Type), Show f) => Show (Exp a f)
+data Exp k name mono exp where
+  Lit :: Int -> Exp k name mono exp
+  Var :: name Value -> Exp k name mono exp
+  Abs :: Binder k name mono -> exp -> Exp k name mono exp
+  AAbs :: (name Value, Fix (Mono name)) -> exp -> Exp k name mono exp
+  TyAbs :: name Type -> Exp E name mono exp -> Exp E name mono exp
+  App :: exp -> exp -> Exp k name mono exp
+  TyApp :: exp -> mono -> Exp E name mono exp
+  Let :: Binder k name mono -> exp -> exp -> Exp k name mono exp
+  Ann :: exp -> Poly name mono -> Exp I name mono exp
+deriving instance ( Show (Binder k name mono)
+                  , Show (name Value)
+                  , Show (name Type)
+                  , Show mono
+                  , Show exp
+                  ) => Show (Exp k name mono exp)
+
+type family Binder k (name :: * -> *) mono
+type instance Binder I name mono = name Value
+type instance Binder E name mono = (name Value, Poly name mono)
