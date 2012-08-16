@@ -231,13 +231,10 @@ rewriteM f =
     loop' (S t (BoundVarS r f)) =
       r `whenUnseen` do
         r `mustNotOccurIn` f
-        listened <- listen $ do
-          f' <- traverse loop f
-          g $ wrap f'
-        let changed = snd listened
-            t' = if getAny changed then fst listened else t
-        r `seenAs` t'
-        return t'
+        (t', changed) <- listen $ g =<< wrap <$> traverse loop f
+        let t'' = if getAny changed then t' else t
+        r `seenAs` t''
+        return t''
     loop' (S t (TermS f)) = do
       (f', changed) <- listen $ traverse loop f
       g $ if getAny changed then wrap f' else t
