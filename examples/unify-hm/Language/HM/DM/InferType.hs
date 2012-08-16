@@ -21,7 +21,7 @@ import Data.HashMap.Lazy ((!))
 import qualified Data.HashMap.Lazy as Map
 import qualified Data.HashSet as Set
 
-import Language.HM.DM.Exp (Exp, I)
+import Language.HM.DM.Exp (Curry, Exp)
 import qualified Language.HM.DM.Exp as E
 import Language.HM.DM.Type (Mono, Poly)
 import qualified Language.HM.DM.Type as T
@@ -36,7 +36,7 @@ inferType :: ( Eq (name Value)
              , MonadIdent name m
              , MonadUnify (T.Mono name) ref m
              ) =>
-             Fix (Exp I name (Fix (Mono name))) ->
+             Fix (Exp Curry name (Fix (Mono name))) ->
              m (Poly name (Fix (Mono name))) -- ^
 inferType =
   unwrapMonadT <<<
@@ -44,8 +44,7 @@ inferType =
   freezePoly <=<
   gen
   where
-    loop =
-      loop' . getFix
+    loop = loop' . getFix
     loop' (E.Lit _) =
       return $ wrap T.Int
     loop' (E.Var x) = do
@@ -84,10 +83,8 @@ inferType =
           a <- newTypeVar
           _ <- unify (pure freeVar) (wrap $ T.Var a)
           return a
-        mapM f =
-          foldlM (\ a -> fmap (flip Set.insert a) . f) Set.empty
-        (\\) =
-          Set.difference
+        mapM f = foldlM (\ a -> fmap (flip Set.insert a) . f) Set.empty
+        (\\) = Set.difference
 
     inst (T.Forall as rho) = do
       taus <- zipM (pure <$> newFreeVar) as
@@ -96,32 +93,25 @@ inferType =
           Free (T.Var a) -> Map.lookup a taus
           _ -> Nothing
       where
-        zipM v =
-          foldlM (\ m k -> flip (Map.insert k) m <$> v) Map.empty
+        zipM v = foldlM (\ m k -> flip (Map.insert k) m <$> v) Map.empty
 
-    skol sigma (T.Forall _a rho) =
-      spec sigma rho
+    skol sigma (T.Forall _a rho) = spec sigma rho
 
     spec sigma rho2 = do
       rho1 <- inst sigma
       mono rho1 rho2
 
-    mono tau tau' =
-      void $ unify tau tau'
+    mono tau tau' = void $ unify tau tau'
 
-    lookupPoly x =
-      asks (!x)
+    lookupPoly x = asks (!x)
 
-    insertPoly x sigma =
-      local $ Map.insert x sigma
+    insertPoly x sigma = local $ Map.insert x sigma
 
-    insertMono x tau =
-      local $ Map.insert x (T.Forall Set.empty tau)
+    insertMono x tau = local $ Map.insert x (T.Forall Set.empty tau)
 
     getMono (T.Forall _ rho) = rho
 
-    freezePoly (T.Forall a rho) =
-      T.Forall a <$> freeze rho
+    freezePoly (T.Forall a rho) = T.Forall a <$> freeze rho
 
     getFreeVars m = do
       ms <- universe m
