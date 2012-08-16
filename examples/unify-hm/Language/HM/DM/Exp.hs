@@ -20,8 +20,8 @@ data Exp k name mono exp where
   Lit :: Int -> Exp k name mono exp
   Var :: name Value -> Exp k name mono exp
   Abs :: Binder k name mono -> exp -> Exp k name mono exp
-  AAbs :: (name Value, mono) -> exp -> Exp k name mono exp
-  TyAbs :: name Type -> Exp E name mono exp -> Exp E name mono exp
+  AAbs :: (name Value, mono) -> exp -> Exp I name mono exp
+  TyAbs :: name Type -> exp -> Exp E name mono exp
   App :: exp -> exp -> Exp k name mono exp
   TyApp :: exp -> mono -> Exp E name mono exp
   Let :: Binder k name mono -> exp -> exp -> Exp k name mono exp
