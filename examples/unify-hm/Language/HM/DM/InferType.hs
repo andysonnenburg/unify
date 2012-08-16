@@ -2,7 +2,6 @@
     ConstraintKinds
   , FlexibleContexts
   , GADTs
-  , ScopedTypeVariables
   , ViewPatterns #-}
 module Language.HM.DM.InferType
        ( inferType
@@ -30,8 +29,7 @@ import Language.HM.Var
 
 import Prelude hiding (mapM)
 
-inferType :: forall name ref m .
-             ( Eq (name Value)
+inferType :: ( Eq (name Value)
              , Hashable (name Value)
              , Eq (name Type)
              , Hashable (name Type)
@@ -44,37 +42,39 @@ inferType =
   unwrapMonadT <<<
   flip runReaderT Map.empty <<<
   freezePoly <=<
-  poly . getFix
+  gen
   where
-    loop (E.Lit _) =
+    loop =
+      loop' . getFix
+    loop' (E.Lit _) =
       return $ wrap T.Int
-    loop (E.Var x) = do
+    loop' (E.Var x) = do
       sigma <- lookupPoly x
       inst sigma
-    loop (E.Abs x t) = do
+    loop' (E.Abs x t) = do
       tau <- pure <$> newFreeVar
-      rho <- insertMono x tau $ loop $ getFix t
+      rho <- insertMono x tau $ loop t
       return $ wrap $ T.Fn tau rho
-    loop (E.AAbs (x, unfreeze -> tau) t) = do
+    loop' (E.AAbs (x, unfreeze -> tau) t) = do
       tau' <- pure <$> newFreeVar
-      rho <- insertMono x tau' $ loop $ getFix t
-      sh (T.Forall Set.empty tau') (T.Forall Set.empty tau)
+      rho <- insertMono x tau' $ loop t
+      skol (T.Forall Set.empty tau') (T.Forall Set.empty tau)
       return $ wrap $ T.Fn tau rho
-    loop (E.App t u) = do
-      tau' <- loop $ getFix t
-      tau <- loop $ getFix u
+    loop' (E.App t u) = do
+      tau' <- loop t
+      tau <- loop u
       rho <- pure <$> newFreeVar
       _ <- unify tau' (wrap $ T.Fn tau rho)
       return rho
-    loop (E.Let x u t) = do
-      sigma <- poly $ getFix u
-      insertPoly x sigma $ loop $ getFix t
-    loop (E.Ann t (fmap unfreeze -> sigma)) = do
-      sigma' <- poly $ getFix t
-      sh sigma' sigma
+    loop' (E.Let x u t) = do
+      sigma <- gen u
+      insertPoly x sigma $ loop t
+    loop' (E.Ann t (fmap unfreeze -> sigma)) = do
+      sigma' <- gen t
+      skol sigma' sigma
       inst sigma
 
-    poly t = do
+    gen t = do
       rho <- loop t
       gamma <- asks $ fmap getMono
       a <- freezeVars =<< (\\) <$> getFreeVars rho <*> getAllFreeVars gamma
@@ -90,15 +90,14 @@ inferType =
           Set.difference
 
     inst (T.Forall as rho) = do
-      taus <- foldlM (\ taus a -> do
-        tau <- fmap pure newFreeVar
-        return $ Map.insert a tau taus) Map.empty as
+      taus <- zipM (pure <$> newFreeVar) as
       flip rewrite rho $ \ f ->
         case f of
           Free (T.Var a) -> Map.lookup a taus
           _ -> Nothing
-
-    sh = skol
+      where
+        zipM v =
+          foldlM (\ m k -> flip (Map.insert k) m <$> v) Map.empty
 
     skol sigma (T.Forall _a rho) =
       spec sigma rho
@@ -124,10 +123,10 @@ inferType =
     freezePoly (T.Forall a rho) =
       T.Forall a <$> freeze rho
     
-    getFreeVars t = do
-      xs <- universe t
-      return $ Set.fromList [x | Pure x <- xs]
+    getFreeVars m = do
+      ms <- universe m
+      return $ Set.fromList [a | Pure a <- ms]
     
-    getAllFreeVars ts = do
-      xs <- universeBi ts
-      return $ Set.fromList [x | Pure x <- xs]
+    getAllFreeVars ms = do
+      ms' <- universeBi ms
+      return $ Set.fromList [a | Pure a <- ms']

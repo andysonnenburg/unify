@@ -169,11 +169,11 @@ universe =
   universeBi . Identity
 
 universeBi :: ( Foldable f
-             , Foldable w
-             , Eq (ref (Maybe (Term w ref)))
-             , Hashable (ref (Maybe (Term w ref)))
-             , MonadRef ref m
-             ) => f (Term w ref) -> m [Term w ref]
+              , Foldable w
+              , Eq (ref (Maybe (Term w ref)))
+              , Hashable (ref (Maybe (Term w ref)))
+              , MonadRef ref m
+              ) => f (Term w ref) -> m [Term w ref]
 universeBi =
   flip evalStateT Set.empty .
   foldlM loop []
@@ -181,7 +181,10 @@ universeBi =
     loop a =
       semiprune >=> loop' a
     loop' a (S t (UnboundVarS r)) =
-      ifM (hasSeen r) (return a) (return $ t:a)
+      ifM (hasSeen r)
+      (return a) $ do
+        seen r
+        return $ t:a
     loop' a (S _ (BoundVarS r f)) =
       ifM (hasSeen r)
       (return a) $ do
@@ -228,28 +231,29 @@ rewriteM f =
     loop' (S t (BoundVarS r f)) =
       r `whenUnseen` do
         r `mustNotOccurIn` f
-        (f', unchanged) <- listen $ traverse loop f
-        t' <- g $ if getAll unchanged then t else wrap f'
+        listened <- listen $ do
+          f' <- traverse loop f
+          g $ wrap f'
+        let changed = snd listened
+            t' = if getAny changed then fst listened else t
         r `seenAs` t'
         return t'
     loop' (S t (TermS f)) = do
-      (f', unchanged) <- listen $ traverse loop f
-      g $ if getAll unchanged then t else wrap f'
+      (f', changed) <- listen $ traverse loop f
+      g $ if getAny changed then wrap f' else t
     g t =
       maybe
-      (do
-          tellUnchanged
-          return t)
+      (return t)
       (\ t' -> do
           tellChanged
-          maybe (return t') g =<< f' t') <=<
-      f' $ t
+          g' t') =<<
+      f' t
+    g' t =
+      maybe (return t) g' =<< f' t
     f' =
       lift . lift . lift . f
-    tellUnchanged =
-      tell $ All True
     tellChanged =
-      tell $ All False
+      tell $ Any True
     evalWriterT =
       fmap fst . runWriterT
 
