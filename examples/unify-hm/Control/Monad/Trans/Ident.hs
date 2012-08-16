@@ -63,7 +63,7 @@ instance MonadIO m => MonadIO (IdentSupplyT s m) where
   liftIO = lift . liftIO
 
 runIdentSupplyT :: Monad m => (forall s . IdentSupplyT s m a) -> m a
-runIdentSupplyT m = flip evalStateT 0 (unIdentSupplyT m)
+runIdentSupplyT m = evalStateT (unIdentSupplyT m) 0
 
 newIdent :: Monad m => Proxy a -> IdentSupplyT s m (Ident s a)
 newIdent _ = IdentSupplyT $ do

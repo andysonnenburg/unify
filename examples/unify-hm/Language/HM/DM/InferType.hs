@@ -122,11 +122,11 @@ inferType =
 
     freezePoly (T.Forall a rho) =
       T.Forall a <$> freeze rho
-    
+
     getFreeVars m = do
       ms <- universe m
       return $ Set.fromList [a | Pure a <- ms]
-    
+
     getAllFreeVars ms = do
       ms' <- universeBi ms
       return $ Set.fromList [a | Pure a <- ms']

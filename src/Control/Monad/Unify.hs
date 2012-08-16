@@ -74,10 +74,8 @@ type MonadUnify f ref m = ( Unifiable f
 unify :: MonadUnify f ref m => Term f ref -> Term f ref -> m (Term f ref) -- ^
 unify = unify'
   where
-    unify' t1 t2 =
-      unwrapMonadT $ runReaderT (loop t1 t2) Map.empty
-    loop t1 t2 =
-      bindM2 (semiprune t1) (semiprune t2) loop'
+    unify' t1 t2 = unwrapMonadT $ runReaderT (loop t1 t2) Map.empty
+    loop t1 t2 = bindM2 (semiprune t1) (semiprune t2) loop'
     loop' (S _ (UnboundVarS r1)) (S t2 (UnboundVarS r2))
       | r1 == r2 =
         return t2
@@ -128,7 +126,6 @@ unify = unify'
       (local (Map.insert r f) m)
       (\ f' -> throwError $ Var r `OccursIn` f') =<<
       asks (Map.lookup r)
-        
 
 data TermS f ref
   = S !(Term f ref) !(Semipruned f ref)
@@ -141,12 +138,9 @@ data Semipruned f ref
 semiprune :: MonadRef ref m => Term f ref -> m (TermS f ref)
 semiprune = semiprune'
   where
-    semiprune' t0@(Pure (Var r0)) =
-      loop t0 r0
-    semiprune' t0@(Free f0) =
-      return $ S t0 (TermS f0)
-    loop t0 r0 =
-      readRef r0 >>= loop'
+    semiprune' t0@(Pure (Var r0)) = loop t0 r0
+    semiprune' t0@(Free f0) = return $ S t0 (TermS f0)
+    loop t0 r0 = readRef r0 >>= loop'
       where
         loop' Nothing =
           return $ S t0 (UnboundVarS r0)
@@ -165,8 +159,7 @@ universe :: ( Foldable f
             , Hashable (ref (Maybe (Term f ref)))
             , MonadRef ref m
             ) => Term f ref -> m [Term f ref]
-universe =
-  universeBi . Identity
+universe = universeBi . Identity
 
 universeBi :: ( Foldable f
               , Foldable w
@@ -178,8 +171,7 @@ universeBi =
   flip evalStateT Set.empty .
   foldlM loop []
   where
-    loop a =
-      semiprune >=> loop' a
+    loop a = loop' a <=< semiprune
     loop' a (S t (UnboundVarS r)) =
       ifM (hasSeen r)
       (return a) $ do
@@ -192,10 +184,8 @@ universeBi =
         foldlM loop a f
     loop' a (S t (TermS f)) =
       liftM (t:) $ foldlM loop a f
-    hasSeen r =
-      gets $ Set.member r
-    seen r =
-      modify $ Set.insert r
+    hasSeen r = gets $ Set.member r
+    seen r = modify $ Set.insert r
     ifM m x y = do
       p <- m
       if p then x else y
@@ -221,38 +211,28 @@ rewriteM :: ( Traversable f
 rewriteM f =
   unwrapMonadT . flip evalStateT Map.empty . evalWriterT . loop
   where
-    loop =
-      semiprune >=> loop'
-    loop' (S t (UnboundVarS r)) =
-      r `whenUnseen` do
-        t' <- g t
-        r `seenAs` t'
-        return t'
-    loop' (S t (BoundVarS r f)) =
-      r `whenUnseen` do
-        r `mustNotOccurIn` f
-        (t', changed) <- listen $ g =<< wrap <$> traverse loop f
-        let t'' = if getAny changed then t' else t
-        r `seenAs` t''
-        return t''
+    loop = loop' <=< semiprune
+    loop' (S t (UnboundVarS r)) = r `whenUnseen` do
+      t' <- g t
+      r `seenAs` t'
+      return t'
+    loop' (S t (BoundVarS r f)) = r `whenUnseen` do
+      r `mustNotOccurIn` f
+      (t', changed) <- listen $ g =<< wrap <$> traverse loop f
+      let t'' = if getAny changed then t' else t
+      r `seenAs` t''
+      return t''
     loop' (S t (TermS f)) = do
       (f', changed) <- listen $ traverse loop f
       g $ if getAny changed then wrap f' else t
-    g t =
-      maybe
-      (return t)
-      (\ t' -> do
-          tellChanged
-          g' t') =<<
-      f' t
-    g' t =
-      maybe (return t) g' =<< f' t
-    f' =
-      lift . lift . lift . f
-    tellChanged =
-      tell $ Any True
-    evalWriterT =
-      fmap fst . runWriterT
+    g t = whenJust t $ \ t' -> do
+      tellChanged
+      g' t'
+    g' = flip whenJust g'
+    whenJust t m = maybe (return t) m =<< f' t
+    f' = lift . lift . lift . f
+    tellChanged = tell $ Any True
+    evalWriterT = fmap fst . runWriterT
 
 freeze :: ( Traversable f
           , Eq (ref (Maybe (Term f ref)))
