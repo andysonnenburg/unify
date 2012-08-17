@@ -43,8 +43,8 @@ main =
   runWrappedErrorT <<<
   flip runDisjT (<|>) $
   runRefSupplyT
-  (uncurry reach =<<
-   ((,) `on` wrap . read) <$>
+  (join $
+   (reach `on` wrap . read) <$>
    liftIO getLine <*>
    liftIO getLine)
 
