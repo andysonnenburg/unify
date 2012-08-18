@@ -19,18 +19,18 @@ import Data.Traversable
 
 import Language.HM.Var
 
-data Poly a f = Forall (HashSet (a Type)) f deriving Functor
-deriving instance (Show (a Type), Show f) => Show (Poly a f)
+data Poly name mono = Forall [name Type] mono deriving Functor
+deriving instance (Show (name Type), Show mono) => Show (Poly name mono)
 
 type Rho = Mono
 
-data Mono a f
+data Mono name mono
   = Int
-  | Fn f f
-  | Var (a Type) deriving (Functor, Foldable, Traversable)
-deriving instance (Show (a Type), Show f) => Show (Mono a f)
+  | Fn mono mono
+  | Var (name Type) deriving (Functor, Foldable, Traversable)
+deriving instance (Show (name Type), Show mono) => Show (Mono name mono)
 
-instance Eq (a Type) => Unifiable (Mono a) where
+instance Eq (name Type) => Unifiable (Mono name) where
   zipMatch = go
     where
       go Int Int = Just Int

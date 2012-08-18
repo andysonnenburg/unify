@@ -3,7 +3,7 @@ module Main (main) where
 import Control.Category ((<<<))
 import Control.Monad
 import Control.Monad.Error.Wrap
-import Control.Monad.Ident
+import Control.Monad.Name
 import Control.Monad.Ref.Hashable
 
 import Data.Fix
@@ -17,7 +17,7 @@ import Prelude hiding (id)
 
 main :: IO ()
 main =
-  runIdentSupplyT
+  runNameSupplyT
   (liftIO . print <=<
    runRefSupplyT <<<
    either (fail . show) return <=<

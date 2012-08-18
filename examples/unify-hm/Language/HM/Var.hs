@@ -6,13 +6,13 @@ module Language.HM.Var
        , newTypeVar
        ) where
 
-import Control.Monad.Ident.Class
+import Control.Monad.Name.Class
 
 data Value
 data Type
 
-newVar :: MonadIdent i m => m (i Value)
-newVar = newIdent (Proxy :: Proxy Value)
+newVar :: MonadName name m => m (name Value)
+newVar = newName (Proxy :: Proxy Value)
 
-newTypeVar :: MonadIdent i m => m (i Type)
-newTypeVar = newIdent (Proxy :: Proxy Type)
+newTypeVar :: MonadName name m => m (name Type)
+newTypeVar = newName (Proxy :: Proxy Type)

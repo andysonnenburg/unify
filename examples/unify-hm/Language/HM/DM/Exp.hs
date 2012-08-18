@@ -21,9 +21,9 @@ data Exp style name mono exp where
   Var :: name Value -> Exp style name mono exp
   Abs :: Binder style name mono -> exp -> Exp style name mono exp
   AAbs :: (name Value, mono) -> exp -> Exp Curry name mono exp
-  TyAbs :: name Type -> exp -> Exp Church name mono exp
+  TyAbs :: [name Type] -> exp -> Exp Church name mono exp
   App :: exp -> exp -> Exp style name mono exp
-  TyApp :: exp -> mono -> Exp Church name mono exp
+  TyApp :: exp -> [mono] -> Exp Church name mono exp
   Let :: Binder style name mono -> exp -> exp -> Exp style name mono exp
   Ann :: exp -> Poly name mono -> Exp Curry name mono exp
 deriving instance ( Show (Binder style name mono)
