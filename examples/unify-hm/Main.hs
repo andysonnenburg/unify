@@ -27,4 +27,4 @@ main =
      x <- newVar
      return $ Fix $
        Let id (Fix (Abs x (Fix (Var x))))
-       (Fix (Var id)))
+       (Fix (App (Fix (Var id)) (Fix (Lit 0)))))

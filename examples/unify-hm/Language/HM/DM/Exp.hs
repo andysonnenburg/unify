@@ -40,7 +40,7 @@ data Exp style name mono exp where
   AAbs :: (name Value, mono) -> exp -> Exp Curry name mono exp
   TyAbs :: [name Type] -> exp -> Exp Church name mono exp
   App :: exp -> exp -> Exp style name mono exp
-  TyApp :: exp -> [mono] -> Exp Church name mono exp
+  TyApp :: exp -> Map (name Type) mono -> Exp Church name mono exp
   Let :: Binder style name mono -> exp -> exp -> Exp style name mono exp
   Ann :: exp -> Poly name mono -> Exp Curry name mono exp
 deriving instance ( Show (Binder style name mono)
@@ -71,19 +71,26 @@ prettyChurch = flip evalState initS . go . getFix
       x' <- prettyValueName x
       sigma' <- prettySigma sigma
       t' <- go $ getFix t
-      return $ char '\x03bb' <+> x' <> colon <+> sigma' <+> dot <+> t'
-    go (TyAbs a t) = do
-      a' <- hsep <$> mapM prettyTypeName a
-      t' <- go $ getFix t
-      return $ char '\x039b' <+> a' <+> dot <+> t'
+      return $ smallLambda <+> x' <> colon <+> sigma' <+> dot <+> t'
+    go (TyAbs a t)
+      | null a =
+        go $ getFix t
+      | otherwise = do
+        a' <- hsep <$> mapM prettyTypeName a
+        t' <- go $ getFix t
+        return $ capitalLambda <+> a' <+> dot <+> t'
     go (App t u) = do
       t' <- go $ getFix t
       u' <- go $ getFix u
       return $ t' <+> u'
     go (TyApp e t) = do
       e' <- go $ getFix e
-      t' <- mapM prettyMono t
-      return $ hsep $ e':t'
+      t' <- fmap (encloseSep lbracket rbracket (comma <> space)) $
+            forM (Map.toList t) $ \ (k, v) -> do
+              k' <- prettyTypeName k
+              v' <- prettyMono v
+              return $ k' <+> rightwardsArrowFromBar <+> v'
+      return $ e' <+> t'
     go (Let (x, sigma) u t) = do
       x' <- prettyValueName x
       sigma' <- prettySigma sigma
@@ -109,10 +116,13 @@ prettyChurch = flip evalState initS . go . getFix
           return x'
         Just x' ->
           return x'
-    prettySigma (T.Forall a rho) = do
-      a' <- hsep <$> mapM prettyTypeName a
-      rho' <- prettyMono rho
-      return $ char '\x2200' <+> a' <+> dot <+> rho'
+    prettySigma (T.Forall a rho)
+      | null a =
+        prettyMono rho
+      | otherwise = do
+        a' <- hsep <$> mapM prettyTypeName a
+        rho' <- prettyMono rho
+        return $ forAll <+> a' <+> dot <+> rho'
     prettyMono rho =
       case getFix rho of
         T.Int ->
@@ -120,13 +130,28 @@ prettyChurch = flip evalState initS . go . getFix
         T.Fn a b -> do
           a' <- prettyMono a
           b' <- prettyMono b
-          return $ a' <+> char '\x2192' <+> b'
+          return $ a' <+> rightwardsArrow <+> b'
         T.Var a ->
           prettyTypeName a
     initS =
       S { nameCount = 0
         , names = mempty
         }
+
+capitalLambda :: Doc e
+capitalLambda = char '\x039b'
+
+forAll :: Doc e
+forAll = char '\x2200'
+
+rightwardsArrow :: Doc e
+rightwardsArrow = char '\x2192'
+
+rightwardsArrowFromBar :: Doc e
+rightwardsArrowFromBar = char '\x21a6'
+
+smallLambda :: Doc e
+smallLambda = char '\x03bb'
 
 data S name e
   = S { nameCount :: Int

@@ -109,7 +109,7 @@ inferType = inferType'
           Free (T.Var a) -> Map.lookup a bindings
           _ -> Nothing
       _ <- unify expected rho'
-      return $ \ x -> E.TyApp (Fix x) taus
+      return $ \ x -> E.TyApp (Fix x) bindings
 
     skol sigma (T.Forall _a rho) = spec sigma rho
 
