@@ -64,10 +64,8 @@ inferType = inferType'
       _ <- unify expected (wrap $ T.Fn tau rho)
       return $ E.Abs (x, T.Forall mempty tau) t'
     loop (E.AAbs (x, unfreeze -> tau) t) expected = do
-      tau' <- pure <$> newFreeVar
       rho <- pure <$> newFreeVar
-      t' <- insertMono x tau' $ Fix <$> loop (getFix t) rho
-      skol (T.Forall mempty tau') (T.Forall mempty tau)
+      t' <- insertMono x tau $ Fix <$> loop (getFix t) rho
       _ <- unify expected (wrap $ T.Fn tau rho)
       return $ E.Abs (x, T.Forall mempty tau) t'
     loop (E.App t u) rho = do
