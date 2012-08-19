@@ -67,6 +67,7 @@ executable unify-hm
     unordered-containers >= 0.2.1.0,
     free,
     tagged,
-    unify
+    unify,
+    wl-pprint-extras
   ghc-options: -Wall
   build-tools: alex, happy

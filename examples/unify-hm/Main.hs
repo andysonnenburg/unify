@@ -22,7 +22,7 @@ main =
    runRefSupplyT <<<
    either (fail . show) return <=<
    runWrappedErrorT $
-   inferType =<< do
+   fmap prettyChurch . inferType =<< do
      id <- newVar
      x <- newVar
      return $ Fix $

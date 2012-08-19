@@ -47,8 +47,8 @@ inferType = inferType'
       freezeExp =<< do
         expected <- pure <$> newFreeVar
         Fix . fst <$> gen (getFix t) expected
-    asCurry :: Fix (Exp Curry name mono) -> ()
-    asCurry _ = ()
+    asCurry :: Fix (Exp Curry name mono) -> Fix (Exp Curry name mono)
+    asCurry = id
     loop t@(E.Lit i) expected = do
       let _ = asCurry $ Fix t
       _ <- unify expected (wrap T.Int)
