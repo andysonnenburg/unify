@@ -63,8 +63,11 @@ prettyChurch :: ( Eq (name Value)
                 ) => Fix (Exp Church name (Fix (Mono name))) -> Doc e
 prettyChurch = flip evalState initS . go . getFix
   where
-    go (Lit i) =
-      return $ pretty i
+    asChurch :: Fix (Exp Church name mono) -> Fix (Exp Church name mono)
+    asChurch = id
+    go t@(Lit i) =
+      let _ = asChurch $ Fix t
+      in return $ pretty i
     go (Var x) =
       prettyValueName x
     go (Abs (x, sigma) t) = do
@@ -99,23 +102,27 @@ prettyChurch = flip evalState initS . go . getFix
       return $
         text "let" <+> x' <> colon <+> sigma' <+> equals <+> u' <+>
         text "in" <+> t'
-    prettyValueName =
-      prettyName ValueName (char 'x')
-    prettyTypeName =
-      prettyName TypeName (char 'a')
-    prettyName f prefix x = do
+    prettyValueName x = do
       S {..} <- get
-      let name = f x
-      case Map.lookup name names of
-        Nothing -> do
-          let x' = prefix <> pretty nameCount
-          modify $ \ s ->
-            s { nameCount = nameCount + 1
-              , names = Map.insert name x' names
-              }
-          return x'
-        Just x' ->
-          return x'
+      let name = ValueName x
+      flip fromMaybeM (Map.lookup name names) $ do
+        let x' = char 'x' <> pretty valueNameCount
+        modify $ \ s ->
+          s { valueNameCount = valueNameCount + 1
+            , names = Map.insert name x' names
+            }
+        return x'
+    prettyTypeName a = do
+      S {..} <- get
+      let name = TypeName a
+      flip fromMaybeM (Map.lookup name names) $ do
+        let a' = char 'a' <> pretty typeNameCount
+        modify $ \ s ->
+          s { typeNameCount = typeNameCount + 1
+            , names = Map.insert name a' names
+            }
+        return a'
+    fromMaybeM = flip maybe return
     prettySigma (T.Forall a rho)
       | null a =
         prettyMono rho
@@ -134,7 +141,8 @@ prettyChurch = flip evalState initS . go . getFix
         T.Var a ->
           prettyTypeName a
     initS =
-      S { nameCount = 0
+      S { valueNameCount = 0
+        , typeNameCount = 0
         , names = mempty
         }
 
@@ -154,7 +162,8 @@ smallLambda :: Doc e
 smallLambda = char '\x03bb'
 
 data S name e
-  = S { nameCount :: Int
+  = S { valueNameCount :: Int
+      , typeNameCount :: Int
       , names :: Map (Name name) (Doc e)
       }
 
@@ -164,6 +173,8 @@ data Name name
 
 deriving instance (Eq (name Value), Eq (name Type)) => Eq (Name name)
 
-instance (Hashable (name Value), Hashable (name Type)) => Hashable (Name name) where
+instance ( Hashable (name Value)
+         , Hashable (name Type)
+         ) => Hashable (Name name) where
   hash (ValueName x) = 0 `hashWithSalt` x
   hash (TypeName a) = 1 `hashWithSalt` a

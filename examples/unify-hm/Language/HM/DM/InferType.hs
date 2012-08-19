@@ -90,7 +90,7 @@ inferType = inferType'
     gen t rho = do
       t' <- loop t rho
       gamma <- asks $ fmap getMono
-      a <- freezeVars . Set.toList =<< (\\) <$> ftv rho <*> ftv' gamma      
+      a <- freezeVars . Set.toList =<< (\\) <$> ftv rho <*> ftv' gamma
       return (E.TyAbs a (Fix t'), T.Forall a rho)
       where
         freezeVars = mapM $ \ freeVar -> do
