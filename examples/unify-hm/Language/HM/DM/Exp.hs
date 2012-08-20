@@ -14,6 +14,7 @@ module Language.HM.DM.Exp
        ) where
 
 import Control.Applicative
+import Control.Monad.Reader
 import Control.Monad.State
 
 import Data.Fix
@@ -27,6 +28,8 @@ import qualified Language.HM.DM.Type as T
 import Language.HM.Var
 
 import Text.PrettyPrint.Free
+
+import Prelude hiding (head, tail)
 
 type Map = HashMap
 
@@ -61,47 +64,56 @@ prettyChurch :: ( Eq (name Value)
                 , Show (name Value)
                 , Show (name Type)
                 ) => Fix (Exp Church name (Fix (Mono name))) -> Doc e
-prettyChurch = flip evalState initS . go . getFix
+prettyChurch = flip runReader (0 :: Int) . flip evalStateT initS . loop
   where
     asChurch :: Fix (Exp Church name mono) -> Fix (Exp Church name mono)
     asChurch = id
-    go t@(Lit i) =
-      let _ = asChurch $ Fix t
-      in return $ pretty i
-    go (Var x) =
+    loop = loop' . getFix . asChurch
+    loop' (Lit i) =
+      return $ pretty i
+    loop' (Var x) =
       prettyValueName x
-    go (Abs (x, sigma) t) = do
+    loop' (Abs (x, sigma) t) = localPrec 0 $ do
       x' <- prettyValueName x
       sigma' <- prettySigma sigma
-      t' <- go $ getFix t
+      t' <- loop t
       return $ smallLambda <+> x' <> colon <+> sigma' <+> dot <+> t'
-    go (TyAbs a t)
+    loop' (TyAbs a t)
       | null a =
-        go $ getFix t
-      | otherwise = do
+        localPrec 0 $ loop t
+      | otherwise = localPrec 0 $ do
         a' <- hsep <$> mapM prettyTypeName a
-        t' <- go $ getFix t
+        t' <- loop t
         return $ capitalLambda <+> a' <+> dot <+> t'
-    go (App t u) = do
-      t' <- go $ getFix t
-      u' <- go $ getFix u
+    loop' (App t u) = localPrec 10 $ do
+      t' <- loop t
+      u' <- loop u
       return $ t' <+> u'
-    go (TyApp e t) = do
-      e' <- go $ getFix e
-      t' <- fmap (encloseSep lbracket rbracket (comma <> space)) $
-            forM (Map.toList t) $ \ (k, v) -> do
-              k' <- prettyTypeName k
-              v' <- prettyMono v
-              return $ k' <+> rightwardsArrowFromBar <+> v'
-      return $ e' <+> t'
-    go (Let (x, sigma) u t) = do
+    loop' (TyApp e t)
+      | Map.null t =
+        localPrec 10 $ loop e
+      | otherwise = localPrec 10 $ do
+        e' <- loop e
+        t' <- fmap (encloseSep lbracket rbracket (comma <> space)) $
+              forM (Map.toList t) $ \ (k, v) -> do
+                k' <- prettyTypeName k
+                v' <- prettyMono v
+                return $ k' <+> rightwardsArrowFromBar <+> v'
+        return $ e' <+> t'
+    loop' (Let (x, sigma) u t) = localPrec 0 $ do
       x' <- prettyValueName x
       sigma' <- prettySigma sigma
-      u' <- go $ getFix u
-      t' <- go $ getFix t
+      u' <- loop u
+      t' <- loop t
       return $
         text "let" <+> x' <> colon <+> sigma' <+> equals <+> u' <+>
         text "in" <+> t'
+    localPrec prec' m = do
+      prec <- ask
+      local (const prec') $
+        if prec' < prec
+        then enclose lparen rparen <$> m
+        else m
     prettyValueName x = do
       S {..} <- get
       let name = ValueName x
@@ -116,9 +128,9 @@ prettyChurch = flip evalState initS . go . getFix
       S {..} <- get
       let name = TypeName a
       flip fromMaybeM (Map.lookup name names) $ do
-        let a' = char 'a' <> pretty typeNameCount
+        let a' = head typeNames
         modify $ \ s ->
-          s { typeNameCount = typeNameCount + 1
+          s { typeNames = tail typeNames
             , names = Map.insert name a' names
             }
         return a'
@@ -133,7 +145,7 @@ prettyChurch = flip evalState initS . go . getFix
     prettyMono rho =
       case getFix rho of
         T.Int ->
-          return $ text "int"
+          return $ text "Int"
         T.Fn a b -> do
           a' <- prettyMono a
           b' <- prettyMono b
@@ -142,7 +154,10 @@ prettyChurch = flip evalState initS . go . getFix
           prettyTypeName a
     initS =
       S { valueNameCount = 0
-        , typeNameCount = 0
+        , typeNames = fromList [ char c <> if i == 0 then empty else pretty i
+                               | c <- ['a' .. 'z']
+                               , i <- [0 :: Integer ..]
+                               ]
         , names = mempty
         }
 
@@ -163,9 +178,21 @@ smallLambda = char '\x03bb'
 
 data S name e
   = S { valueNameCount :: Int
-      , typeNameCount :: Int
+      , typeNames :: Stream (Doc e)
       , names :: Map (Name name) (Doc e)
       }
+
+data Stream a = a :| Stream a
+
+fromList :: [a] -> Stream a
+fromList (x:xs) = x :| fromList xs
+fromList [] = undefined
+
+head :: Stream a -> a
+head (x :| _) = x
+
+tail :: Stream a -> Stream a
+tail (_ :| xs) = xs
 
 data Name name
   = ValueName (name Value)

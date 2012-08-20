@@ -46,52 +46,52 @@ inferType = inferType'
       flip runReaderT Map.empty $
       freezeExp =<< do
         expected <- pure <$> newFreeVar
-        Fix . fst <$> gen (getFix t) expected
+        fst <$> gen t expected
     asCurry :: Fix (Exp Curry name mono) -> Fix (Exp Curry name mono)
     asCurry = id
-    loop t@(E.Lit i) expected = do
-      let _ = asCurry $ Fix t
+    loop t = fmap Fix . loop' (getFix $ asCurry t)
+    loop' (E.Lit i) expected = do
       _ <- unify expected (wrap T.Int)
       return $ E.Lit i
-    loop (E.Var x) rho = do
+    loop' (E.Var x) rho = do
       sigma <- lookupPoly x
       f <- inst sigma rho
       return $ f $ E.Var x
-    loop (E.Abs x t) expected = do
+    loop' (E.Abs x t) expected = do
       tau <- pure <$> newFreeVar
       rho <- pure <$> newFreeVar
-      t' <- insertMono x tau $ Fix <$> loop (getFix t) rho
+      t' <- insertMono x tau $ loop t rho
       _ <- unify expected (wrap $ T.Fn tau rho)
       return $ E.Abs (x, T.Forall mempty tau) t'
-    loop (E.AAbs (x, unfreeze -> tau) t) expected = do
+    loop' (E.AAbs (x, unfreeze -> tau) t) expected = do
       rho <- pure <$> newFreeVar
-      t' <- insertMono x tau $ Fix <$> loop (getFix t) rho
+      t' <- insertMono x tau $ loop t rho
       _ <- unify expected (wrap $ T.Fn tau rho)
       return $ E.Abs (x, T.Forall mempty tau) t'
-    loop (E.App t u) rho = do
+    loop' (E.App t u) rho = do
       tau' <- pure <$> newFreeVar
-      t' <- Fix <$> loop (getFix t) tau'
+      t' <- loop t tau'
       tau <- pure <$> newFreeVar
-      u' <- Fix <$> loop (getFix u) tau
+      u' <- loop u tau
       _ <- unify tau' (wrap $ T.Fn tau rho)
       return $ E.App t' u'
-    loop (E.Let x u t) rho = do
+    loop' (E.Let x u t) rho = do
       tau <- pure <$> newFreeVar
-      (u', sigma) <- gen (getFix u) tau
-      t' <- insertPoly x sigma $ Fix <$> loop (getFix t) rho
-      return $ E.Let (x, sigma) (Fix u') t'
-    loop (E.Ann t (fmap unfreeze -> sigma)) rho = do
+      (u', sigma) <- gen u tau
+      t' <- insertPoly x sigma $ loop t rho
+      return $ E.Let (x, sigma) u' t'
+    loop' (E.Ann t (fmap unfreeze -> sigma)) rho = do
       rho' <- pure <$> newFreeVar
-      (t', sigma') <- gen (getFix t) rho'
+      (t', sigma') <- gen t rho'
       skol sigma' sigma
       f <- inst sigma rho
-      return $ f t'
+      return $ f $ getFix t'
 
     gen t rho = do
       t' <- loop t rho
       gamma <- asks $ fmap getMono
       a <- freezeVars . Set.toList =<< (\\) <$> ftv rho <*> ftv' gamma
-      return (E.TyAbs a (Fix t'), T.Forall a rho)
+      return (Fix $ E.TyAbs a t', T.Forall a rho)
       where
         freezeVars = mapM $ \ freeVar -> do
           a <- newTypeVar
