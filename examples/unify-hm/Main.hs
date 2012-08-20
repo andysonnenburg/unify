@@ -6,12 +6,12 @@ import Control.Monad.Error.Wrap
 import Control.Monad.Name
 import Control.Monad.Ref.Hashable
 
-import Data.Fix
+import Data.ByteString.Lazy as ByteString
 
 import Language.HM.DM.Exp
-import Language.HM.DM.Type hiding (Var)
 import Language.HM.DM.InferType
-import Language.HM.Var
+import Language.HM.DM.Parse
+import Language.HM.DM.Rename
 
 import Prelude hiding (id)
 
@@ -22,9 +22,7 @@ main =
    runRefSupplyT <<<
    either (fail . show) return <=<
    runWrappedErrorT $
-   fmap prettyChurch . inferType =<< do
-     id <- newVar
-     x <- newVar
-     return $ Fix $
-       Let id (Fix (Abs x (Fix (Var x))))
-       (Fix (App (Fix (Var id)) (Fix (Lit 0)))))
+   fmap prettyChurch . inferType =<<
+   rename =<<
+   parse =<<
+   liftIO ByteString.getContents)

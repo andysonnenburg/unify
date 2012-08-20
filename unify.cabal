@@ -61,6 +61,8 @@ executable unify-hm
   build-depends:
     base,
     array,
+    bytestring,
+    text,
     transformers,
     mtl,
     hashable,
