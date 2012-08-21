@@ -21,17 +21,20 @@ import Data.Fix
 import Data.Hashable
 import Data.HashMap.Lazy (HashMap)
 import qualified Data.HashMap.Lazy as Map
+import Data.HashSet (HashSet)
+import qualified Data.HashSet as Set
 import Data.Monoid hiding ((<>))
 
 import Language.HM.DM.Type (Mono, Poly)
 import qualified Language.HM.DM.Type as T
 import Language.HM.Var
 
-import Text.PrettyPrint.Free
+import Text.PrettyPrint.Free hiding (list)
 
 import Prelude hiding (head, tail)
 
 type Map = HashMap
+type Set = HashSet
 
 data Curry
 data Church
@@ -41,7 +44,7 @@ data Exp style name mono exp where
   Var :: name Value -> Exp style name mono exp
   Abs :: Binder style name mono -> exp -> Exp style name mono exp
   AAbs :: (name Value, mono) -> exp -> Exp Curry name mono exp
-  TyAbs :: [name Type] -> exp -> Exp Church name mono exp
+  TyAbs :: Set (name Type) -> exp -> Exp Church name mono exp
   App :: exp -> exp -> Exp style name mono exp
   TyApp :: exp -> Map (name Type) mono -> Exp Church name mono exp
   Let :: Binder style name mono -> exp -> exp -> Exp style name mono exp
@@ -79,10 +82,10 @@ prettyChurch = flip runReader (0 :: Int) . flip evalStateT initS . loop
       t' <- loop t
       return $ smallLambda <+> x' <> colon <+> sigma' <+> dot <+> t'
     loop' (TyAbs a t)
-      | null a =
+      | Set.null a =
         localPrec 0 $ loop t
       | otherwise = localPrec 0 $ do
-        a' <- hsep <$> mapM prettyTypeName a
+        a' <- fmap hsep . mapM prettyTypeName $ Set.toList a
         t' <- loop t
         return $ capitalLambda <+> a' <+> dot <+> t'
     loop' (App t u) = localPrec 10 $ do
@@ -91,15 +94,16 @@ prettyChurch = flip runReader (0 :: Int) . flip evalStateT initS . loop
       return $ t' <+> u'
     loop' (TyApp e t)
       | Map.null t =
-        localPrec 10 $ loop e
-      | otherwise = localPrec 10 $ do
-        e' <- loop e
-        t' <- fmap (encloseSep lbracket rbracket (comma <> space)) $
-              forM (Map.toList t) $ \ (k, v) -> do
-                k' <- prettyTypeName k
-                v' <- prettyMono v
-                return $ k' <+> rightwardsArrowFromBar <+> v'
-        return $ e' <+> t'
+        loop e
+      | otherwise =
+        localPrec 10 $
+        (<+>) <$> loop e <*>
+        (fmap list . forM (Map.toList t) $ \ (k, v) -> do
+            k' <- prettyTypeName k
+            v' <- prettyMono v
+            return $ k' <+> rightwardsArrowFromBar <+> v')
+        where
+          list = encloseSep lbracket rbracket (comma <> space)
     loop' (Let (x, sigma) u t) = localPrec 0 $ do
       x' <- prettyValueName x
       sigma' <- prettySigma sigma
@@ -136,10 +140,10 @@ prettyChurch = flip runReader (0 :: Int) . flip evalStateT initS . loop
         return a'
     fromMaybeM = flip maybe return
     prettySigma (T.Forall a rho)
-      | null a =
+      | Set.null a =
         prettyMono rho
       | otherwise = do
-        a' <- hsep <$> mapM prettyTypeName a
+        a' <- fmap hsep . mapM prettyTypeName $ Set.toList a
         rho' <- prettyMono rho
         return $ forAll <+> a' <+> dot <+> rho'
     prettyMono rho =

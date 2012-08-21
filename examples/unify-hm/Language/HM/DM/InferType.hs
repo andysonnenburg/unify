@@ -20,6 +20,7 @@ import Data.HashMap.Lazy ((!))
 import qualified Data.HashMap.Lazy as Map
 import qualified Data.HashSet as Set
 import Data.Monoid
+import Data.Foldable
 import Data.Traversable
 
 import Language.HM.DM.Exp (Church, Curry, Exp)
@@ -90,16 +91,19 @@ inferType = inferType'
     gen t rho = do
       t' <- loop t rho
       gamma <- asks $ fmap getMono
-      a <- freezeVars . Set.toList =<< (\\) <$> ftv rho <*> ftv' gamma
+      a <- freezeVars =<< (\\) <$> ftv rho <*> ftv' gamma
       return (Fix $ E.TyAbs a t', T.Forall a rho)
       where
-        freezeVars = mapM $ \ freeVar -> do
+        freezeVars = mapM' $ \ freeVar -> do
           a <- newTypeVar
           _ <- unify (pure freeVar) (wrap $ T.Var a)
           return a
+        mapM' f = foldlM g Set.empty
+          where
+            g a b = Set.insert <$> f b <*> pure a
         (\\) = Set.difference
 
-    inst (T.Forall as rho) expected = do
+    inst (T.Forall (Set.toList -> as) rho) expected = do
       taus <- mapM (const $ pure <$> newFreeVar) as
       let bindings = Map.fromList $ zip as taus
       rho' <- flip rewrite rho $ \ f ->

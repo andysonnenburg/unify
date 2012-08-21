@@ -19,7 +19,9 @@ import Data.Traversable
 
 import Language.HM.Var
 
-data Poly name mono = Forall [name Type] mono deriving Functor
+type Set = HashSet
+
+data Poly name mono = Forall (Set (name Type)) mono deriving Functor
 deriving instance (Show (name Type), Show mono) => Show (Poly name mono)
 
 type Rho = Mono
