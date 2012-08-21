@@ -65,8 +65,6 @@ prettyChurch :: ( Eq (name Value)
                 , Eq (name Type)
                 , Hashable (name Value)
                 , Hashable (name Type)
-                , Show (name Value)
-                , Show (name Type)
                 ) => Fix (Exp Church name (Fix (Mono name))) -> Doc e
 prettyChurch = flip runReader (0 :: Int) . flip evalStateT initS . loop
   where
