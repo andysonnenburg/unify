@@ -24,6 +24,7 @@ import qualified Data.HashMap.Lazy as Map
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as Set
 import Data.Monoid hiding ((<>))
+import Data.Stream (Stream, (++), concatMap, enumFrom, head, tail)
 
 import Language.HM.DM.Type (Mono, Poly)
 import qualified Language.HM.DM.Type as T
@@ -31,7 +32,7 @@ import Language.HM.Var
 
 import Text.PrettyPrint.Free hiding (list)
 
-import Prelude hiding (head, tail)
+import Prelude hiding ((++), concatMap, enumFrom, head, tail)
 
 type Map = HashMap
 type Set = HashSet
@@ -122,9 +123,9 @@ prettyChurch = flip runReader (0 :: Int) . flip evalStateT initS . loop
       S {..} <- get
       let name = ValueName x
       flip fromMaybeM (Map.lookup name names) $ do
-        let x' = char 'x' <> pretty valueNameCount
+        let x' = head valueNames
         modify $ \ s ->
-          s { valueNameCount = valueNameCount + 1
+          s { valueNames = tail valueNames
             , names = Map.insert name x' names
             }
         return x'
@@ -157,13 +158,15 @@ prettyChurch = flip runReader (0 :: Int) . flip evalStateT initS . loop
         T.Var a ->
           prettyTypeName a
     initS =
-      S { valueNameCount = 0
-        , typeNames = fromList [ char c <> if i == 0 then empty else pretty i
-                               | c <- ['a' .. 'z']
-                               , i <- [0 :: Integer ..]
-                               ]
+      S { valueNames =
+             (char 'x' <>) . pretty <$> enumFrom (1 :: Integer)
+        , typeNames =
+             fmap char ['a' .. 'z'] ++
+             concatMap f (pretty <$> enumFrom (1 :: Integer))
         , names = mempty
         }
+      where
+        f a = (\ c -> char c <> a) <$> ['a' .. 'z']
 
 capitalLambda :: Doc e
 capitalLambda = char '\x039b'
@@ -181,22 +184,10 @@ smallLambda :: Doc e
 smallLambda = char '\x03bb'
 
 data S name e
-  = S { valueNameCount :: Int
+  = S { valueNames :: Stream (Doc e)
       , typeNames :: Stream (Doc e)
       , names :: Map (Name name) (Doc e)
       }
-
-data Stream a = a :| Stream a
-
-fromList :: [a] -> Stream a
-fromList (x:xs) = x :| fromList xs
-fromList [] = undefined
-
-head :: Stream a -> a
-head (x :| _) = x
-
-tail :: Stream a -> Stream a
-tail (_ :| xs) = xs
 
 data Name name
   = ValueName (name Value)
