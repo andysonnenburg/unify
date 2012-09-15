@@ -56,8 +56,9 @@ rename = unwrapMonadT . flip runReaderT mempty . loop
         bindName x $ \ x' -> Abs x' <$> loop e
       App e1 e2 ->
         App <$> loop e1 <*> loop e2
-      Let x e e' ->
-        (bindName x $ \ x' -> Let x' <$> loop e) <*> loop e'
+      Let x e1 e2 -> do
+        e1' <- loop e1
+        (bindName x $ \ x' -> Let x' e1' <$> loop e2)
 
 lookupName :: ( MonadError NameError m
               , MonadReader (R name) m
