@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE PolyKinds, Rank2Types #-}
 module Control.Monad.Trans.Name
        ( module Exports
        , Name
@@ -30,7 +30,7 @@ type NameSupply s = NameSupplyT s Identity
 runNameSupply :: (forall s . NameSupply s a) -> a
 runNameSupply = runIdentity . runNameSupplyT
 
-newtype NameSupplyT s m a
+newtype NameSupplyT (s :: *) (m :: * -> *) (a :: *)
   = NameSupplyT { unNameSupplyT :: StateT S m a
                 }
 

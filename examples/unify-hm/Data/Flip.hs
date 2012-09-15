@@ -1,3 +1,4 @@
+{-# LANGUAGE PolyKinds #-}
 module Data.Flip
        ( Flip (..)
        ) where

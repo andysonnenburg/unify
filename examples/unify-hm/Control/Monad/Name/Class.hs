@@ -2,6 +2,7 @@
     FlexibleInstances
   , FunctionalDependencies
   , MultiParamTypeClasses
+  , PolyKinds
   , UndecidableInstances #-}
 module Control.Monad.Name.Class
        ( module Exports

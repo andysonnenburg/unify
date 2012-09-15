@@ -1,15 +1,13 @@
-{-# LANGUAGE EmptyDataDecls #-}
+{-# LANGUAGE DataKinds #-}
 module Language.HM.Var
-       ( Value
-       , Type
+       ( VarKind (..)
        , newVar
        , newTypeVar
        ) where
 
-import Control.Monad.Name.Class
+import Control.Monad.Name
 
-data Value
-data Type
+data VarKind = Value | Type
 
 newVar :: MonadName name m => m (name Value)
 newVar = newName (Proxy :: Proxy Value)

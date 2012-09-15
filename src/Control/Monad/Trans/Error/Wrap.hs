@@ -1,9 +1,12 @@
+{-# LANGUAGE LambdaCase #-}
 module Control.Monad.Trans.Error.Wrap
        ( WrappedError (..)
        , WrappedErrorT (..)
        , runWrappedErrorT
        , throwError
        , catchError
+       , mapWrappedErrorT
+       , mapError
        ) where
 
 import Control.Applicative
@@ -71,8 +74,22 @@ catchError :: Monad m =>
               WrappedErrorT e m a ->
               (e -> WrappedErrorT e m a) ->
               WrappedErrorT e m a
-m `catchError` h = WrapErrorT $ unwrapErrorT m `Error.catchError` h'
-  where
-    h' e@NoMsg = Error.throwError e
-    h' e@(StrMsg _) = Error.throwError e
-    h' (Error e) = unwrapErrorT $ h e
+m `catchError` h =
+  WrapErrorT $ unwrapErrorT m `Error.catchError` \ case
+    e@NoMsg -> Error.throwError e
+    e@(StrMsg _) -> Error.throwError e
+    Error e -> unwrapErrorT $ h e
+
+mapWrappedErrorT :: (m (Either (WrappedError e) a) -> n (Either (WrappedError e') b)) ->
+                    WrappedErrorT e m a -> WrappedErrorT e' n b
+mapWrappedErrorT f = WrapErrorT . mapErrorT f . unwrapErrorT
+
+mapError :: Monad m => (e -> e') -> WrappedErrorT e m a -> WrappedErrorT e' m a
+mapError f m = flip mapWrappedErrorT m . bind $ \ case
+  Left NoMsg -> return $ Left NoMsg
+  Left (StrMsg s) -> return . Left $ StrMsg s
+  Left (Error e) -> return . Left . Error $ f e
+  Right a -> return $ Right a
+
+bind :: Monad m => (a -> m b) -> m a -> m b
+bind = flip (>>=)

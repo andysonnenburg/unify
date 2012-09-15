@@ -58,6 +58,9 @@ executable unify-main
 executable unify-hm
   hs-source-dirs: examples/unify-hm
   main-is: Main.hs
+  other-modules:
+    Language.HM.Lex.Internal
+    Language.HM.Parse.Internal
   build-depends:
     base,
     array,
@@ -68,8 +71,8 @@ executable unify-hm
     hashable,
     unordered-containers >= 0.2.1.0,
     free,
-    tagged,
     unify,
+    tagged >= 0.4.4,
     wl-pprint-extras
   ghc-options: -Wall
   build-tools: alex, happy

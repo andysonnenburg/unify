@@ -14,7 +14,9 @@ import Control.Monad.Trans as Exports
 import qualified Control.Monad.Trans.Error.Wrap as Wrap
 import Control.Monad.Trans.Error.Wrap as Exports (WrappedError (..),
                                                   WrappedErrorT,
-                                                  runWrappedErrorT)
+                                                  runWrappedErrorT,
+                                                  mapWrappedErrorT,
+                                                  mapError)
 
 instance Monad m => MonadError e (WrappedErrorT e m) where
   throwError = Wrap.throwError
