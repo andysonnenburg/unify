@@ -32,7 +32,7 @@ import Language.HM.Type (Mono, Poly)
 import qualified Language.HM.Type as T
 import Language.HM.Var
 
-import Text.PrettyPrint.Free hiding (list)
+import Text.PrettyPrint.Free
 
 import Prelude hiding ((.), (++), concatMap, enumFrom, head, id, tail)
 
@@ -69,7 +69,7 @@ prettyChurch :: ( Eq (name Value)
                 , Show (name Value)
                 , Show (name Type)
                 ) => Fix (Exp Church name (Fix (Mono name))) -> Doc e
-prettyChurch = flip runReader (0 :: Int) . flip evalStateT initS . loop
+prettyChurch = flip runReader (0, Nothing) . flip evalStateT initS . loop
   where
     asChurch :: Fix (Exp Church name mono) -> Fix (Exp Church name mono)
     asChurch = id
@@ -78,19 +78,19 @@ prettyChurch = flip runReader (0 :: Int) . flip evalStateT initS . loop
         return $ pretty i
       Var x ->
         prettyValueName x
-      Abs (x, sigma) t -> localPrec 0 $ do
+      Abs (x, sigma) t -> localFixity (Fixity 0 InfixL) $ do
         x' <- prettyValueName x
         sigma' <- prettySigma sigma
         t' <- loop t
         return $ smallLambda <+> x' <> colon <+> sigma' <+> dot <+> t'
       TyAbs a t
         | Set.null a ->
-          localPrec 0 $ loop t
-        | otherwise -> localPrec 0 $ do
+          localFixity (Fixity 0 InfixL) $ loop t
+        | otherwise -> localFixity (Fixity 0 InfixL) $ do
           a' <- fmap hsep . mapM prettyTypeName $ Set.toList a
           t' <- loop t
           return $ capitalLambda <+> a' <+> dot <+> t'
-      App t u -> localPrec 10 $ do
+      App t u -> localFixity (Fixity 10 InfixN) $ do
         t' <- loop t
         u' <- loop u
         return $ t' <+> u'
@@ -98,15 +98,13 @@ prettyChurch = flip runReader (0 :: Int) . flip evalStateT initS . loop
         | Map.null t ->
           loop e
         | otherwise ->
-          localPrec 10 $
+          localFixity (Fixity 10 InfixN) $
           (<+>) <$> loop e <*>
           (fmap list . forM (Map.toList t) $ \ (k, v) -> do
             k' <- prettyTypeName k
             v' <- prettyMono v
             return $ k' <+> rightwardsArrowFromBar <+> v')
-          where
-            list = encloseSep lbracket rbracket (comma <> space)
-      Let (x, sigma) u t -> localPrec 0 $ do
+      Let (x, sigma) u t -> localFixity (Fixity 0 InfixL) $ do
         x' <- prettyValueName x
         sigma' <- prettySigma sigma
         u' <- loop u
@@ -114,12 +112,6 @@ prettyChurch = flip runReader (0 :: Int) . flip evalStateT initS . loop
         return $
           text "let" <+> x' <> colon <+> sigma' <+> equals <+> u' <+>
           text "in" <+> t'
-    localPrec prec' m = do
-      prec <- ask
-      local (const prec') $
-        if prec' < prec
-        then enclose lparen rparen <$> m
-        else m
     prettyValueName x = do
       S {..} <- get
       let name = ValueName x
@@ -152,12 +144,26 @@ prettyChurch = flip runReader (0 :: Int) . flip evalStateT initS . loop
       case getFix rho of
         T.Int ->
           return $ text "Int"
-        T.Fn a b -> do
-          a' <- prettyMono a
-          b' <- prettyMono b
+        T.Fn a b -> localFixity (Fixity 9 InfixR) $ do
+          a' <- localSide L $ prettyMono a
+          b' <- localSide R $ prettyMono b
           return $ a' <+> rightwardsArrow <+> b'
         T.Var a ->
           prettyTypeName a
+    localFixity (Fixity prec' dir) m = do
+      (prec, side) <- ask
+      let comparePrec =
+            case (dir, side) of
+              (InfixL, Just L) -> (<)
+              (InfixR, Just R) -> (<)
+              (_, Nothing) -> (<)
+              _ -> (<=)
+      localPrec prec' $
+        if comparePrec prec' prec
+        then enclose lparen rparen <$> m
+        else m
+    localPrec prec' = local $ \ (_prec, side) -> (prec', side)
+    localSide side' = local $ \ (prec, _side) -> (prec, Just side')
     initS =
       S { valueNameCount = 0
         , typeNames =
@@ -168,6 +174,12 @@ prettyChurch = flip runReader (0 :: Int) . flip evalStateT initS . loop
         }
       where
         bind = flip concatMap
+
+data Fixity = Fixity Int FixityDirection
+
+data FixityDirection = InfixL | InfixR | InfixN deriving Eq
+
+data Side = L | R
 
 capitalLambda :: Doc e
 capitalLambda = char '\x039b'
