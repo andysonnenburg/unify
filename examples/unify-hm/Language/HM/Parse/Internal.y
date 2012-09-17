@@ -29,6 +29,7 @@ import Prelude hiding (exp, lex)
 
 %monad { MonadError ParserError m } { m } { (>>=) } { return }
 %lexer { lexer } { EOF }
+%error { happyError }
 
 %token
 '\\' { Token Backslash }
@@ -68,8 +69,8 @@ type ParsedExp
 parse :: MonadError ParserError m => ParserT m ParsedExp
 parse = exp
 
-happyError :: MonadError ParserError m => m a
-happyError = undefined
+happyError :: MonadError ParserError m => Lexed Token -> m a
+happyError = throwError . ParseError
 
 lexer :: MonadError ParserError m => (LexedToken -> ParserT m a) -> ParserT m a
 lexer = (lex >>=)

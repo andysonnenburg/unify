@@ -65,7 +65,7 @@ alexGetByte = ByteString.uncons
 type ParserT = StateT S
 
 data ParserError
-  = ParseError Token
+  = ParseError (Lexed Token)
   | LexicalError
   | UnicodeException UnicodeException deriving Show
 

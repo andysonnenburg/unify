@@ -34,9 +34,7 @@ type Map = HashMap
 
 type RenamedExp name = Fix (Exp Curry name (Fix (Mono name)))
 
-data NameError
-  = NotInScope Text
-  | ConflictingDefinitions Text deriving Show
+data NameError = NotInScope Text deriving Show
 
 rename :: ( Eq (name Value)
           , Hashable (name Value)
@@ -71,13 +69,8 @@ bindName :: ( MonadError NameError m
             , MonadReader (R name) m
             ) => Flip Tagged Text Value -> (name Value -> m a) -> m a
 bindName (Flip (Tagged name)) f = do
-  r <- ask
-  case Map.lookup name r of
-    Nothing -> do
-      name' <- newVar
-      local (Map.insert name name') $ f name'
-    Just _ ->
-      throwError $ ConflictingDefinitions name
+  name' <- newVar
+  local (Map.insert name name') $ f name'
 
 whenNothing :: Monad m => Maybe a -> m a -> m a
 whenNothing = flip (flip maybe return)
