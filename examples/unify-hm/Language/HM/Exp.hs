@@ -140,16 +140,17 @@ prettyChurch = flip runReader (0, Nothing) . flip evalStateT initS . loop
         a' <- fmap hsep . mapM prettyTypeName $ Set.toList a
         rho' <- prettyMono rho
         return $ forAll <+> a' <+> dot <+> rho'
-    prettyMono rho =
-      case getFix rho of
-        T.Int ->
-          return $ text "Int"
-        T.Fn a b -> localFixity (Fixity 9 InfixR) $ do
-          a' <- localSide L $ prettyMono a
-          b' <- localSide R $ prettyMono b
-          return $ a' <+> rightwardsArrow <+> b'
-        T.Var a ->
-          prettyTypeName a
+    prettyMono = local (const (0, Nothing)) . loop
+      where
+        loop = getFix >>> \ case
+          T.Int ->
+            return $ text "Int"
+          T.Fn a b -> localFixity (Fixity 9 InfixR) $ do
+            a' <- localSide L $ loop a
+            b' <- localSide R $ loop b
+            return $ a' <+> rightwardsArrow <+> b'
+          T.Var a ->
+            prettyTypeName a
     localFixity (Fixity prec' dir) m = do
       (prec, side) <- ask
       let comparePrec =
