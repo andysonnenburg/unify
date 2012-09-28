@@ -195,11 +195,11 @@ rewriteM f =
   unwrapMonadT . flip evalStateT Map.empty . evalWriterT . loop
   where
     loop = semiprune >=> \ case
-      S t (UnboundVarS r) -> r `whenUnseen` do
+      S t (UnboundVarS r) -> whenUnseen r $ do
         t' <- g t
         r `seenAs` t'
         return t'
-      S t (BoundVarS r f) -> r `whenUnseen` do
+      S t (BoundVarS r f) -> whenUnseen r $ do
         r `mustNotOccurIn` f
         (t', changed) <- listen $ g =<< term <$> traverse loop f
         let t'' = if getAny changed then t' else t
@@ -229,7 +229,7 @@ freeze =
     loop = semiprune >=> \ case
       S _ (UnboundVarS r) ->
         throw $ UnboundVar r
-      S _ (BoundVarS r f) -> r `whenUnseen` do
+      S _ (BoundVarS r f) -> whenUnseen r $ do
         r `mustNotOccurIn` f
         f' <- Fix <$> traverse loop f
         r `seenAs` f'
@@ -237,7 +237,7 @@ freeze =
       S _ (TermS f) ->
         Fix <$> traverse loop f
 
-r `whenUnseen` m = do
+whenUnseen r m = do
   s <- get
   case Map.lookup r s of
     Nothing -> m
