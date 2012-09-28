@@ -82,8 +82,8 @@ unify = unify'
           return t2
         | otherwise -> do
           writeRef r2 . Just =<<
-            (r1 `mustNotOccurIn` f1 $
-             r2 `mustNotOccurIn` f2 $
+            (r1 `localMustNotOccurIn` f1 $
+             r2 `localMustNotOccurIn` f2 $
              match f1 f2)
           writeRef r1 $ Just t2
           return t2
@@ -95,12 +95,12 @@ unify = unify'
         return t2
       (S t1 (BoundVarS r1 f1), S _ (TermS f2)) -> do
         writeRef r1 . Just =<<
-          (r1 `mustNotOccurIn` f1 $
+          (r1 `localMustNotOccurIn` f1 $
            match f1 f2)
         return t1
       (S _ (TermS f1), S t2 (BoundVarS r2 f2)) -> do
         writeRef r2 . Just =<<
-          (r2 `mustNotOccurIn` f2 $
+          (r2 `localMustNotOccurIn` f2 $
            match f1 f2)
         return t2
       (S _ (TermS f1), S _ (TermS f2)) ->
@@ -110,7 +110,7 @@ unify = unify'
       (throw $ x `DoesNotMatch` y)
       (fmap term . traverse (uncurry loop)) $
       zipMatch x y
-    (r `mustNotOccurIn` f) m =
+    (r `localMustNotOccurIn` f) m =
       maybe
       (local (Map.insert r f) m)
       (throw . (r `OccursIn`)) =<<
@@ -149,11 +149,11 @@ universe :: ( Foldable f
 universe = universeBi . Identity
 
 universeBi :: ( Foldable f
-              , Foldable w
-              , Eq (ref (Maybe (Term w ref)))
-              , Hashable (ref (Maybe (Term w ref)))
+              , Foldable u
+              , Eq (ref (Maybe (Term u ref)))
+              , Hashable (ref (Maybe (Term u ref)))
               , MonadRef ref m
-              ) => f (Term w ref) -> m [Term w ref]
+              ) => f (Term u ref) -> m [Term u ref]
 universeBi =
   flip evalStateT Set.empty .
   foldlM loop []
@@ -199,20 +199,20 @@ rewriteM f =
         t' <- g t
         r `seenAs` t'
         return t'
-      S t (BoundVarS r f) -> whenUnseen r $ do
-        r `mustNotOccurIn` f
-        (t', changed) <- listen $ g =<< term <$> traverse loop f
+      S t (BoundVarS r x) -> whenUnseen r $ do
+        r `mustNotOccurIn` x
+        (t', changed) <- listen $ g =<< term <$> traverse loop x
         let t'' = if getAny changed then t' else t
         r `seenAs` t''
         return t''
-      S t (TermS f) -> do
-        (f', changed) <- listen $ traverse loop f
-        g $ if getAny changed then term f' else t
+      S t (TermS x) -> do
+        (x', changed) <- listen $ traverse loop x
+        g $ if getAny changed then term x' else t
     g t = whenJust f' t $ \ t' -> do
       tellChanged
-      whileJust f' t'
+      unfoldLastM f' t'
     whenJust p x k = maybe (return x) k =<< p x
-    whileJust p x = maybe (return x) (whileJust p) =<< p x
+    unfoldLastM k x = maybe (return x) (unfoldLastM k) =<< k x
     f' = lift . lift . lift . f
     tellChanged = tell $ Any True
     evalWriterT = fmap fst . runWriterT
