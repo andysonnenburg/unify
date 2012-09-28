@@ -13,7 +13,7 @@ import Control.Applicative
 import Control.Category ((<<<))
 import Control.Monad.Disj
 import Control.Monad.Error.Wrap
-import Control.Monad.Ref
+import Control.Monad.Ref.Integer
 import Control.Monad.Unify
 
 import Data.Foldable
@@ -44,20 +44,18 @@ main =
   flip runDisjT (<|>) $
   runRefSupplyT
   (join $
-   (reach `on` wrap . read) <$>
+   (reach `on` term . read) <$>
    liftIO getLine <*>
    liftIO getLine)
 
-reach x y =
-  x == y || forSome (\ z -> flight x z && reach z y)
+reach x y = x == y || forSome (\ z -> flight x z && reach z y)
 
 flight x y =
-  x == wrap Chicago && y == wrap NewYork ||
-  x == wrap LosAngeles && y == wrap Chicago ||
-  x == wrap Chicago && y == wrap LosAngeles
+  x == term Chicago && y == term NewYork ||
+  x == term LosAngeles && y == term Chicago ||
+  x == term Chicago && y == term LosAngeles
 
-forSome k =
-  newFreeVar >>= k . pure
+forSome = (freshTerm >>=)
 
 (&&) = (*>)
 infixr 3 &&
@@ -65,8 +63,5 @@ infixr 3 &&
 (||) = (<|>)
 infixr 2 ||
 
-(==) a =
-  either (const (throwError ())) (const (return ())) <=<
-  runWrappedErrorT <<<
-  unify a
+(==) a = void . mapE (const ()) . unify a
 infix 4 ==

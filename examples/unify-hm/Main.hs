@@ -1,13 +1,15 @@
 {-# LANGUAGE
     ExistentialQuantification
   , NoMonomorphismRestriction
-  , StandaloneDeriving #-}
+  , StandaloneDeriving
+  , TupleSections #-}
 module Main (main) where
 
 import Control.Category ((<<<))
 import Control.Monad
 import Control.Monad.Error.Wrap
 import Control.Monad.Name
+import Control.Monad.Reader
 import Control.Monad.Ref.Hashable
 import Control.Monad.Unify
 
@@ -22,6 +24,7 @@ import Prelude hiding (id)
 
 main :: IO ()
 main =
+  flip runReaderT Stdin $
   runNameSupplyT
   (runRefSupplyT <<<
    liftIO . print <=<
@@ -32,9 +35,12 @@ main =
    parse' =<<
    liftIO ByteString.getContents)
   where
-    inferType' = mapError UnificationError . inferType
-    rename' = mapError NameError . rename
-    parse' = mapError ParserError . parse
+    inferType' = mapError ((, undefined) . UnificationError) . inferType
+    rename' = mapError (mapFst NameError) . rename
+    parse' = mapError (mapFst ParserError) . parse
+
+mapFst :: (a -> c) -> (a, b) -> (c, b)
+mapFst f (a, b) = (f a, b)
 
 data CompilerError
   = forall f ref .

@@ -3,13 +3,15 @@
   , DataKinds
   , FlexibleContexts
   , GADTs
+  , LambdaCase
   , ViewPatterns #-}
 module Language.HM.InferType
        ( inferType
        ) where
 
 import Control.Applicative
-import Control.Category ((<<<))
+import Control.Category
+import Control.Comonad.Cofree
 import Control.Monad.Name.Class
 import Control.Monad.Reader hiding (mapM)
 import Control.Monad.Unify
@@ -30,7 +32,7 @@ import Language.HM.Type (Mono)
 import qualified Language.HM.Type as T
 import Language.HM.Var
 
-import Prelude hiding (foldl, mapM)
+import Prelude hiding ((.), foldl, id, mapM)
 
 inferType :: ( Eq (name Value)
              , Eq (name Type)
@@ -39,8 +41,8 @@ inferType :: ( Eq (name Value)
              , MonadName name m
              , MonadUnify (T.Mono name) ref m
              ) =>
-             Fix (Exp Curry name (Fix (Mono name))) ->
-             m (Fix (Exp Church name (Fix (Mono name)))) -- ^
+             Cofree (Exp Curry name (Fix (Mono name))) a ->
+             m (Cofree (Exp Church name (Fix (Mono name))) a) -- ^
 inferType = inferType'
   where
     inferType' t =
@@ -49,55 +51,57 @@ inferType = inferType'
       freezeExp =<< do
         expected <- pure <$> newFreeVar
         fst <$> gen t expected
-    asCurry :: Fix (Exp Curry name mono) -> Fix (Exp Curry name mono)
+    asCurry :: Cofree (Exp Curry name mono) a -> Cofree (Exp Curry name mono) a
     asCurry = id
-    loop t = fmap Fix . loop' (getFix $ asCurry t)
-    loop' (E.Lit i) expected = do
-      void $ unify expected (wrap T.Int)
-      return $ E.Lit i
-    loop' (E.Var x) rho = do
-      sigma <- lookupPoly x
-      f <- inst sigma rho
-      return $ f $ E.Var x
-    loop' (E.Abs x t) expected = do
-      tau <- pure <$> newFreeVar
-      rho <- pure <$> newFreeVar
-      t' <- insertMono x tau $ loop t rho
-      void $ unify expected (wrap $ T.Fn tau rho)
-      return $ E.Abs (x, T.Forall mempty tau) t'
-    loop' (E.AAbs (x, unfreeze -> tau) t) expected = do
-      rho <- pure <$> newFreeVar
-      t' <- insertMono x tau $ loop t rho
-      void $ unify expected (wrap $ T.Fn tau rho)
-      return $ E.Abs (x, T.Forall mempty tau) t'
-    loop' (E.App t u) rho = do
-      tau' <- pure <$> newFreeVar
-      t' <- loop t tau'
-      tau <- pure <$> newFreeVar
-      u' <- loop u tau
-      void $ unify tau' (wrap $ T.Fn tau rho)
-      return $ E.App t' u'
-    loop' (E.Let x u t) rho = do
-      tau <- pure <$> newFreeVar
-      (u', sigma) <- gen u tau
-      t' <- insertPoly x sigma $ loop t rho
-      return $ E.Let (x, sigma) u' t'
-    loop' (E.Ann t (fmap unfreeze -> sigma)) rho = do
-      rho' <- pure <$> newFreeVar
-      (t', sigma') <- gen t rho'
-      skol sigma' sigma
-      f <- inst sigma rho
-      return $ f $ getFix t'
+    asChurch :: Cofree (Exp Church name mono) a -> Cofree (Exp Church name mono) a
+    asChurch = id
+    loop (asCurry -> a :< f) expected = case f of
+      E.Lit i -> do
+        unify' expected (wrap T.Int)
+        return $ a :<  E.Lit i
+      E.Var x -> do
+        sigma <- lookupPoly x
+        f <- inst sigma expected
+        return $ f $ a :< E.Var x
+      E.Abs x t -> do
+        tau <- pure <$> newFreeVar
+        rho <- pure <$> newFreeVar
+        t' <- insertMono x tau $ loop t rho
+        unify' expected (wrap $ T.Fn tau rho)
+        return $ a :< E.Abs (x, T.Forall mempty tau) t'
+      E.AAbs (x, unfreeze -> tau) t -> do
+        rho <- pure <$> newFreeVar
+        t' <- insertMono x tau $ loop t rho
+        unify' expected (wrap $ T.Fn tau rho)
+        return $ a :< E.Abs (x, T.Forall mempty tau) t'
+      E.App t u -> do
+        tau' <- pure <$> newFreeVar
+        t' <- loop t tau'
+        tau <- pure <$> newFreeVar
+        u' <- loop u tau
+        unify' tau' (wrap $ T.Fn tau expected)
+        return $ a :< E.App t' u'
+      E.Let x u t -> do
+        tau <- pure <$> newFreeVar
+        (u', sigma) <- gen u tau
+        t' <- insertPoly x sigma $ loop t expected
+        return $ a :< E.Let (x, sigma) u' t'
+      E.Ann t (fmap unfreeze -> sigma) -> do
+        rho' <- pure <$> newFreeVar
+        (t', sigma') <- gen t rho'
+        skol sigma' sigma
+        f <- inst sigma expected
+        return $ f t'
 
     gen t rho = do
       t' <- loop t rho
       gamma <- asks $ fmap getMono
       a <- freezeVars =<< (\\) <$> ftv rho <*> ftv' gamma
-      return (Fix $ E.TyAbs a t', T.Forall a rho)
+      return (using t' $ E.TyAbs a t', T.Forall a rho)
       where
         freezeVars = mapM' $ \ freeVar -> do
           a <- newTypeVar
-          void $ unify (pure freeVar) (wrap $ T.Var a)
+          unify' (pure freeVar) (wrap $ T.Var a)
           return a
         mapM' f = foldlM g Set.empty
           where
@@ -111,8 +115,8 @@ inferType = inferType'
         case f of
           Free (T.Var a) -> Map.lookup a bindings
           _ -> Nothing
-      void $ unify expected rho'
-      return $ \ x -> E.TyApp (Fix x) bindings
+      unify' expected rho'
+      return $ \ e -> using e $ E.TyApp e bindings
 
     skol sigma (T.Forall _a rho) = spec sigma rho
 
@@ -121,7 +125,7 @@ inferType = inferType'
       void $ inst sigma rho1
       mono rho1 rho2
 
-    mono tau tau' = void $ unify tau tau'
+    mono tau tau' = unify' tau tau'
 
     lookupPoly x = asks (!x)
 
@@ -133,27 +137,30 @@ inferType = inferType'
 
     freezePoly (T.Forall a rho) = T.Forall a <$> freeze rho
 
-    freezeExp = fmap Fix . freezeExp' . getFix
+    freezeExp = mapM' $ \ case
+      E.Lit i ->
+        return $ E.Lit i
+      E.Var x ->
+        return $ E.Var x
+      E.Abs (x, sigma) t -> do
+        sigma' <- freezePoly sigma
+        t' <- freezeExp t
+        return $ E.Abs (x, sigma') t'
+      E.TyAbs a t ->
+        E.TyAbs a <$> freezeExp t
+      E.App t u ->
+        E.App <$> freezeExp t <*> freezeExp u
+      E.TyApp e t ->
+        E.TyApp <$> freezeExp e <*> mapM freeze t
+      E.Let (x, sigma) u t -> do
+        sigma' <- freezePoly sigma
+        u' <- freezeExp u
+        t' <- freezeExp t
+        return $ E.Let (x, sigma') u' t'
       where
-        freezeExp' (E.Lit i) =
-          return $ E.Lit i
-        freezeExp' (E.Var x) =
-          return $ E.Var x
-        freezeExp' (E.Abs (x, sigma) t) = do
-          sigma' <- freezePoly sigma
-          t' <- freezeExp t
-          return $ E.Abs (x, sigma') t'
-        freezeExp' (E.TyAbs a t) =
-          E.TyAbs a <$> freezeExp t
-        freezeExp' (E.App t u) =
-          E.App <$> freezeExp t <*> freezeExp u
-        freezeExp' (E.TyApp e t) =
-          E.TyApp <$> freezeExp e <*> mapM freeze t
-        freezeExp' (E.Let (x, sigma) u t) = do
-          sigma' <- freezePoly sigma
-          u' <- freezeExp u
-          t' <- freezeExp t
-          return $ E.Let (x, sigma') u' t'
+        mapM' f (asChurch -> a :< b) = (a :<) <$> f b
+
+    using (a :< _) b = a :< b
 
     ftv m = do
       ms <- universe m
@@ -162,3 +169,5 @@ inferType = inferType'
     ftv' ms = do
       ms' <- universeBi ms
       return $ Set.fromList [a | Pure a <- ms']
+
+    unify' a b = void $ mapE (, a) $ unify a b

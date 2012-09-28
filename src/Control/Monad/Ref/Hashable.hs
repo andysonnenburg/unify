@@ -1,6 +1,6 @@
 {-# LANGUAGE
-    MultiParamTypeClasses
-  , TypeFamilies
+    FlexibleInstances
+  , MultiParamTypeClasses
   , UndecidableInstances #-}
 module Control.Monad.Ref.Hashable
        ( module Exports
@@ -11,7 +11,9 @@ module Control.Monad.Ref.Hashable
 
 import Control.Applicative
 import Control.Monad as Exports
+import Control.Monad.Catch.Class
 import Control.Monad.Fix as Exports
+import Control.Monad.Reader.Class
 import Control.Monad.Ref.Class
 import Control.Monad.Trans as Exports
 import Control.Monad.Trans.State.Strict
@@ -87,3 +89,12 @@ instance MonadRef ref m => MonadRef (Ref ref) (RefSupplyT m) where
     lift $ writeRef ref a
   modifyRef (Ref ref _) f =
     lift $ modifyRef ref f
+
+instance MonadReader r m => MonadReader r (RefSupplyT m) where
+  ask = lift ask
+  local f = RefSupplyT . local f . unRefSupplyT
+  reader = lift . reader
+
+instance MonadThrow e m => MonadThrow e (RefSupplyT m)
+instance MonadCatch e m n => MonadCatch e (RefSupplyT m) (RefSupplyT n) where
+  m `catch` h = RefSupplyT $ unRefSupplyT m `catch` (unRefSupplyT . h)

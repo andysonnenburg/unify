@@ -9,11 +9,17 @@ module Control.Monad.Wrap
        ) where
 
 import Control.Monad as Exports
+import Control.Monad.Catch.Class
 import Control.Monad.Error.Class
 import Control.Monad.Fix as Exports
 import Control.Monad.Ref.Class
 import Control.Monad.Trans as Exports
 import Control.Monad.Trans.Wrap as Exports
+
+instance MonadThrow e m => MonadThrow e (WrappedMonadT m)
+instance MonadCatch e m n =>
+         MonadCatch e (WrappedMonadT m) (WrappedMonadT n) where
+  m `catch` h = WrapMonadT $ unwrapMonadT m `catch` (unwrapMonadT . h)
 
 instance MonadError e m => MonadError e (WrappedMonadT m) where
   throwError =

@@ -1,78 +1,48 @@
 name: unify
-version: 0.1
-
--- A short (one-line) description of the package.
--- Synopsis:            
-
--- A longer description of the package.
--- Description:         
-
+version: 0.1.0.0
+cabal-version: >= 1.10
+synopsis: unify
+description: unify
 license: BSD3
 license-file: LICENSE
 author: Andy Sonnenburg
-maintainer: andy22286@gmail.com
-
--- A copyright notice.
--- Copyright:           
-
+maintainer: Andy Sonnenburg <andy22286@gmail.com>
 category: Control
+homepage: http://github.com/sonyandy/unify
+bug-reports: http://github.com/sonyandy/unify/issues
 build-type: Simple
 
--- Extra files to be distributed with the package, such as examples or
--- a README.
-extra-source-files: README
-cabal-version: >= 1.8
+source-repository head
+  type: git
+  location: git://github.com/sonyandy/unify.git
 
 library
+  default-language: Haskell98
   hs-source-dirs: src
   build-depends:
     base,
     transformers,
     mtl,
+    catch-fd >= 0.2,
+    ref-fd >= 0.4,
     hashable,
-    unordered-containers >= 0.2.1.0,
-    free
+    unordered-containers >= 0.2.1.0
   exposed-modules:
     Control.Monad.Disj
     Control.Monad.Error.Wrap
-    Control.Monad.Ref.Class
-    Control.Monad.Ref
     Control.Monad.Ref.Hashable
+    Control.Monad.Ref.Integer
     Control.Monad.Trans.Disj
     Control.Monad.Trans.Error.Wrap
-    Control.Monad.Trans.Ref.Int
+    Control.Monad.Trans.Ref.Integer
     Control.Monad.Trans.Wrap
     Control.Monad.Unify
     Control.Monad.Wrap
     Data.Fix
   ghc-options: -Wall
-  -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
-  -- Build-tools:         
 
 executable unify-main
   hs-source-dirs: examples/unify-main
   main-is: Main.hs
-  build-depends: base, unify
+  build-depends: base, ref-fd, unify
   ghc-options: -Wall
-
-executable unify-hm
-  hs-source-dirs: examples/unify-hm
-  main-is: Main.hs
-  other-modules:
-    Language.HM.Lex.Internal
-    Language.HM.Parse.Internal
-  build-depends:
-    base,
-    array,
-    bytestring,
-    text,
-    transformers,
-    mtl,
-    hashable,
-    unordered-containers >= 0.2.1.0,
-    free,
-    unify,
-    tagged >= 0.4.4,
-    wl-pprint-extras
-  ghc-options: -Wall
-  build-tools: alex, happy

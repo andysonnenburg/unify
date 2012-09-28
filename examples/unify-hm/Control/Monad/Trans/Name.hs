@@ -1,4 +1,4 @@
-{-# LANGUAGE PolyKinds, Rank2Types #-}
+{-# LANGUAGE DataKinds, EmptyDataDecls, PolyKinds, Rank2Types #-}
 module Control.Monad.Trans.Name
        ( module Exports
        , Name
@@ -7,6 +7,7 @@ module Control.Monad.Trans.Name
        , NameSupplyT
        , runNameSupplyT
        , newName
+       , mapNameSupplyT
        ) where
 
 import Control.Applicative
@@ -19,7 +20,9 @@ import Data.Functor.Identity
 import Data.Hashable
 import Data.Proxy as Exports
 
-newtype Name s a = Name { getName :: S } deriving (Show, Eq)
+data Region
+
+newtype Name (s :: Region) a = Name { getName :: S } deriving (Show, Eq)
 
 instance Hashable (Name s a) where
   hash = hash . getName
@@ -30,7 +33,7 @@ type NameSupply s = NameSupplyT s Identity
 runNameSupply :: (forall s . NameSupply s a) -> a
 runNameSupply = runIdentity . runNameSupplyT
 
-newtype NameSupplyT (s :: *) (m :: * -> *) (a :: *)
+newtype NameSupplyT (s :: Region) (m :: * -> *) (a :: *)
   = NameSupplyT { unNameSupplyT :: StateT S m a
                 }
 
@@ -72,3 +75,6 @@ newName _ = NameSupplyT $ do
   return $ Name s
 
 type S = Integer
+
+mapNameSupplyT :: (forall a' . m a' -> m a') -> NameSupplyT s m a -> NameSupplyT s m a
+mapNameSupplyT f = NameSupplyT . mapStateT f . unNameSupplyT

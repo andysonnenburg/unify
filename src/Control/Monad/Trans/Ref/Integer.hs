@@ -1,10 +1,12 @@
 {-# LANGUAGE
-    Rank2Types
-  , RecordWildCards
-  , TypeFamilies #-}
-{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
-module Control.Monad.Trans.Ref.Int
-       ( Ref
+    DataKinds
+  , EmptyDataDecls
+  , KindSignatures
+  , Rank2Types
+  , RecordWildCards #-}
+module Control.Monad.Trans.Ref.Integer
+       ( Region
+       , Ref
        , RefSupply
        , runRefSupply
        , RefSupplyT
@@ -35,7 +37,9 @@ import Unsafe.Coerce (unsafeCoerce)
 
 type Map = HashMap
 
-newtype Ref s a = Ref { unRef :: Int } deriving (Eq, Show)
+data Region
+
+newtype Ref (s :: Region) a = Ref { unRef :: Integer } deriving (Eq, Show)
 
 instance Hashable (Ref s a) where
   hash = hash . unRef
@@ -46,7 +50,7 @@ type RefSupply s = RefSupplyT s Identity
 runRefSupply :: (forall s . RefSupply s a) -> a
 runRefSupply = runIdentity . runRefSupplyT
 
-newtype RefSupplyT s m a
+newtype RefSupplyT (s :: Region) m a
   = RefSupplyT { unRefSupplyT :: StateT S m a
                }
 
@@ -84,8 +88,8 @@ instance MonadIO m => MonadIO (RefSupplyT s m) where
   liftIO = lift . liftIO
 
 data S
-  = S { refCount :: !Int
-      , refMap :: Map Int Any
+  = S { refCount :: !Integer
+      , refMap :: Map Integer Any
       }
 
 initS :: S
@@ -129,9 +133,10 @@ modifyRef ref f =
   where
     f' = unsafeCoerce . f . unsafeCoerce
 
-liftCatch :: (forall a . m a -> (e -> m a) -> m a) ->
+liftCatch :: (forall a' . m a' -> (e -> n a') -> n a') ->
              RefSupplyT s m a ->
-             (e -> RefSupplyT s m a) ->
-             RefSupplyT s m a
-liftCatch catchError m h =
-  RefSupplyT $ State.liftCatch catchError (unRefSupplyT m) (unRefSupplyT . h)
+             (e -> RefSupplyT s n a) ->
+             RefSupplyT s n a
+liftCatch catch m h = RefSupplyT $ State.StateT $ \ s ->
+  State.runStateT (unRefSupplyT m) s `catch` \ e ->
+  State.runStateT (unRefSupplyT $ h e) s

@@ -1,22 +1,17 @@
 {-# LANGUAGE
-    ConstraintKinds
-  , FlexibleContexts
+    FlexibleContexts
   , LambdaCase
   , StandaloneDeriving
-  , TypeFamilies
   , UndecidableInstances #-}
 {-# OPTIONS_GHC
-    -fno-warn-missing-signatures
-    -fno-warn-name-shadowing #-}
+    -fno-warn-missing-signatures #-}
 module Control.Monad.Unify
-       ( module Exports
-       , Var
-       , Term
+       ( Term (..)
+       , term
        , Unifiable (..)
        , UnificationError (..)
-       , MonadUnify
        , unify
-       , newFreeVar
+       , freshTerm
        , universe
        , rewrite
        , rewriteM
@@ -26,8 +21,7 @@ module Control.Monad.Unify
        ) where
 
 import Control.Applicative
-import Control.Monad.Error.Class
-import Control.Monad.Free as Exports
+import Control.Monad.Catch.Class
 import Control.Monad.Reader
 import Control.Monad.Ref.Class
 import Control.Monad.State
@@ -42,21 +36,17 @@ import qualified Data.HashMap.Lazy as Map
 import qualified Data.HashSet as Set
 import Data.Traversable
 
-newtype Var f ref = Var (ref (Maybe (Term f ref)))
-deriving instance Eq (ref (Maybe (Term f ref))) => Eq (Var f ref)
-deriving instance Ord (ref (Maybe (Term f ref))) => Ord (Var f ref)
-deriving instance Show (ref (Maybe (Term f ref))) => Show (Var f ref)
+data Term f ref
+  = Var (ref (Maybe (Term f ref)))
+  | Term (f (Term f ref))
 
-instance Hashable (ref (Maybe (Term f ref))) => Hashable (Var f ref) where
-  hash (Var x) = hash x
-  hashWithSalt salt (Var x) = hashWithSalt salt x
-
-type Term f ref = Free f (Var f ref)
+term :: f (Term f ref) -> Term f ref
+term = Term
 
 data UnificationError f ref
-  = OccursIn (Var f ref) (f (Term f ref))
-  | TermMismatch (f (Term f ref)) (f (Term f ref))
-  | UnboundVar (Var f ref)
+  = ref (Maybe (Term f ref)) `OccursIn` f (Term f ref)
+  | f (Term f ref) `DoesNotMatch` f (Term f ref)
+  | UnboundVar (ref (Maybe (Term f ref)))
 
 deriving instance ( Show (f (Term f ref))
                   , Show (ref (Maybe (Term f ref)))
@@ -65,18 +55,16 @@ deriving instance ( Show (f (Term f ref))
 class Traversable f => Unifiable f where
   zipMatch :: f a -> f b -> Maybe (f (a, b))
 
-type MonadUnify f ref m = ( Unifiable f
-                          , Eq (ref (Maybe (Term f ref)))
-                          , Hashable (ref (Maybe (Term f ref)))
-                          , MonadError (UnificationError f ref) m
-                          , MonadRef ref m
-                          ) -- ^
-
-unify :: MonadUnify f ref m => Term f ref -> Term f ref -> m (Term f ref) -- ^
+unify :: ( Unifiable f
+         , Eq (ref (Maybe (Term f ref)))
+         , Hashable (ref (Maybe (Term f ref)))
+         , MonadRef ref m
+         , MonadThrow (UnificationError f ref) m
+         ) => Term f ref -> Term f ref -> m (Term f ref) -- ^
 unify = unify'
   where
     unify' t1 t2 = unwrapMonadT $ runReaderT (loop t1 t2) Map.empty
-    loop t1 t2 = bind2 (semiprune t1) (semiprune t2) $ curry $ \ case
+    loop = flip onM semiprune $ curry $ \ case
       (S _ (UnboundVarS r1), S t2 (UnboundVarS r2))
         | r1 == r2 ->
           return t2
@@ -119,13 +107,13 @@ unify = unify'
         match f1 f2
     match x y =
       maybe
-      (throwError $ TermMismatch x y)
-      (fmap Free . traverse (uncurry loop)) $
+      (throw $ x `DoesNotMatch` y)
+      (fmap term . traverse (uncurry loop)) $
       zipMatch x y
     (r `mustNotOccurIn` f) m =
       maybe
       (local (Map.insert r f) m)
-      (\ f' -> throwError $ Var r `OccursIn` f') =<<
+      (throw . (r `OccursIn`)) =<<
       asks (Map.lookup r)
 
 data TermS f ref
@@ -137,21 +125,21 @@ data Semipruned f ref
   | TermS !(f (Term f ref))
 
 semiprune :: MonadRef ref m => Term f ref -> m (TermS f ref)
-semiprune t0@(Free f0) = return $ S t0 (TermS f0)
-semiprune t0@(Pure (Var r0)) = loop t0 r0
+semiprune t0@(Term f0) = return $ S t0 (TermS f0)
+semiprune t0@(Var r0) = loop t0 r0
   where
     loop t r = readRef r >>= \ case
       Nothing ->
         return $ S t (UnboundVarS r)
-      Just t'@(Pure (Var r')) -> do
+      Just t'@(Var r') -> do
         s@(S t'' _) <- loop t' r'
         writeRef r $ Just t''
         return s
-      Just (Free f) ->
+      Just (Term f) ->
         return $ S t (BoundVarS r f)
 
-newFreeVar :: MonadRef ref m => m (Var f ref)
-newFreeVar = unwrapMonadT $ Var <$> newRef Nothing
+freshTerm :: MonadRef ref m => m (Term f ref)
+freshTerm = unwrapMonadT $ Var <$> newRef Nothing
 
 universe :: ( Foldable f
             , Eq (ref (Maybe (Term f ref)))
@@ -188,8 +176,8 @@ universeBi =
 rewrite :: ( Traversable f
            , Eq (ref (Maybe (Term f ref)))
            , Hashable (ref (Maybe (Term f ref)))
-           , MonadError (UnificationError f ref) m
            , MonadRef ref m
+           , MonadThrow (UnificationError f ref) m
            ) =>
            (Term f ref -> Maybe (Term f ref)) ->
            Term f ref -> m (Term f ref) -- ^
@@ -198,8 +186,8 @@ rewrite = rewriteM . (return .)
 rewriteM :: ( Traversable f
             , Eq (ref (Maybe (Term f ref)))
             , Hashable (ref (Maybe (Term f ref)))
-            , MonadError (UnificationError f ref) m
             , MonadRef ref m
+            , MonadThrow (UnificationError f ref) m
             ) =>
             (Term f ref -> m (Maybe (Term f ref))) ->
             Term f ref -> m (Term f ref) -- ^
@@ -213,13 +201,13 @@ rewriteM f =
         return t'
       S t (BoundVarS r f) -> r `whenUnseen` do
         r `mustNotOccurIn` f
-        (t', changed) <- listen $ g =<< wrap <$> traverse loop f
+        (t', changed) <- listen $ g =<< term <$> traverse loop f
         let t'' = if getAny changed then t' else t
         r `seenAs` t''
         return t''
       S t (TermS f) -> do
         (f', changed) <- listen $ traverse loop f
-        g $ if getAny changed then wrap f' else t
+        g $ if getAny changed then term f' else t
     g t = whenJust f' t $ \ t' -> do
       tellChanged
       whileJust f' t'
@@ -232,15 +220,15 @@ rewriteM f =
 freeze :: ( Traversable f
           , Eq (ref (Maybe (Term f ref)))
           , Hashable (ref (Maybe (Term f ref)))
-          , MonadError (UnificationError f ref) m
           , MonadRef ref m
+          , MonadThrow (UnificationError f ref) m
           ) => Term f ref -> m (Fix f) -- ^
 freeze =
   unwrapMonadT . flip evalStateT Map.empty . loop
   where
     loop = semiprune >=> \ case
       S _ (UnboundVarS r) ->
-        throwError $ UnboundVar $ Var r
+        throw $ UnboundVar r
       S _ (BoundVarS r f) -> r `whenUnseen` do
         r `mustNotOccurIn` f
         f' <- Fix <$> traverse loop f
@@ -253,7 +241,7 @@ r `whenUnseen` m = do
   s <- get
   case Map.lookup r s of
     Nothing -> m
-    Just (Left f) -> throwError $ Var r `OccursIn` f
+    Just (Left f) -> throw $ r `OccursIn` f
     Just (Right f) -> return f
 
 r `mustNotOccurIn` f =
@@ -263,7 +251,10 @@ r `seenAs` f =
   modify $ Map.insert r (Right f)
 
 unfreeze :: Functor f => Fix f -> Term f ref
-unfreeze = Free . fmap unfreeze . getFix
+unfreeze = Term . fmap unfreeze . getFix
+
+onM :: Monad m => (b -> b -> m c) -> (a -> m b) -> a -> a -> m c
+onM g f x y = bind2 (f x) (f y) g
 
 bind2 :: Monad m => m a -> m b -> (a -> b -> m c) -> m c
 bind2 a b f = do

@@ -16,6 +16,7 @@ module Language.HM.Exp
 
 import Control.Applicative
 import Control.Category
+import Control.Comonad.Cofree
 import Control.Monad.Reader
 import Control.Monad.State
 
@@ -68,12 +69,12 @@ prettyChurch :: ( Eq (name Value)
                 , Hashable (name Type)
                 , Show (name Value)
                 , Show (name Type)
-                ) => Fix (Exp Church name (Fix (Mono name))) -> Doc e
+                ) => Cofree (Exp Church name (Fix (Mono name))) a -> Doc e
 prettyChurch = flip runReader (0, Nothing) . flip evalStateT initS . loop
   where
-    asChurch :: Fix (Exp Church name mono) -> Fix (Exp Church name mono)
+    asChurch :: Cofree (Exp Church name mono) a -> Cofree (Exp Church name mono) a
     asChurch = id
-    loop = asChurch >>> getFix >>> \ case
+    loop = asChurch >>> unwrap' >>> \ case
       Lit i ->
         return $ pretty i
       Var x ->
@@ -112,6 +113,8 @@ prettyChurch = flip runReader (0, Nothing) . flip evalStateT initS . loop
         return $
           text "let" <+> x' <> colon <+> sigma' <+> equals <+> u' <+>
           text "in" <+> t'
+      where
+        unwrap' (_ :< b) = b
     prettyValueName x = do
       S {..} <- get
       let name = ValueName x
@@ -168,7 +171,7 @@ prettyChurch = flip runReader (0, Nothing) . flip evalStateT initS . loop
     initS =
       S { valueNameCount = 0
         , typeNames =
-           fmap char ['a' .. 'z'] ++ 
+           fmap char ['a' .. 'z'] ++
            enumFrom (0 :: Integer) `bind` \ i ->
              (<> pretty i) . char <$> ['a' .. 'z']
         , names = mempty

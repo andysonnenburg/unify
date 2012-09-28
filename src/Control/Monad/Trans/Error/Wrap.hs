@@ -6,7 +6,6 @@ module Control.Monad.Trans.Error.Wrap
        , throwError
        , catchError
        , mapWrappedErrorT
-       , mapError
        ) where
 
 import Control.Applicative
@@ -30,15 +29,16 @@ instance Error (WrappedError e) where
   noMsg = NoMsg
   strMsg = StrMsg
 
-newtype WrappedErrorT e m a
-  = WrapErrorT { unwrapErrorT :: ErrorT (WrappedError e) m a
-               }
+newtype WrappedErrorT e m a =
+  WrapErrorT { unwrapErrorT :: ErrorT (WrappedError e) m a
+             }
 
 runWrappedErrorT :: WrappedErrorT e m a -> m (Either (WrappedError e) a)
 runWrappedErrorT = runErrorT . unwrapErrorT
 
 instance Functor m => Functor (WrappedErrorT e m) where
   fmap f = WrapErrorT . fmap f . unwrapErrorT
+  a <$ m = WrapErrorT $ a <$ unwrapErrorT m
 
 instance (Functor m, Monad m) => Applicative (WrappedErrorT e m) where
   pure = WrapErrorT . return
@@ -83,13 +83,3 @@ m `catchError` h =
 mapWrappedErrorT :: (m (Either (WrappedError e) a) -> n (Either (WrappedError e') b)) ->
                     WrappedErrorT e m a -> WrappedErrorT e' n b
 mapWrappedErrorT f = WrapErrorT . mapErrorT f . unwrapErrorT
-
-mapError :: Monad m => (e -> e') -> WrappedErrorT e m a -> WrappedErrorT e' m a
-mapError f m = flip mapWrappedErrorT m . bind $ \ case
-  Left NoMsg -> return $ Left NoMsg
-  Left (StrMsg s) -> return . Left $ StrMsg s
-  Left (Error e) -> return . Left . Error $ f e
-  Right a -> return $ Right a
-
-bind :: Monad m => (a -> m b) -> m a -> m b
-bind = flip (>>=)
