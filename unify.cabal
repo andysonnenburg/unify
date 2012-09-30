@@ -24,12 +24,13 @@ library
     transformers,
     mtl,
     catch-fd >= 0.2,
-    ref-fd >= 0.4,
     hashable,
     unordered-containers >= 0.2.1.0
   exposed-modules:
     Control.Monad.Disj
     Control.Monad.Error.Wrap
+    Control.Monad.Ref
+    Control.Monad.Ref.Class
     Control.Monad.Ref.Hashable
     Control.Monad.Ref.Integer
     Control.Monad.Trans.Disj
